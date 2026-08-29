@@ -2,12 +2,14 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+import path from 'node:path';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const isProduction = process.argv.includes('--production');
 
 app.use(express.json({ limit: '1mb' }));
 
@@ -195,12 +197,20 @@ Quando houver atestado, falta ou folga de vários dias, registre o período com 
   }
 });
 
-const vite = await createViteServer({
-  server: { middlewareMode: true },
-  appType: 'spa',
-});
+if (isProduction) {
+  const clientBuildPath = path.resolve('dist');
+  app.use(express.static(clientBuildPath));
+  app.get('*', (_request, response) => {
+    response.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+} else {
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
+  app.use(vite.middlewares);
+}
 
-app.use(vite.middlewares);
 app.listen(port, '0.0.0.0', () => {
-  console.log(`FarmaEscala disponível em http://localhost:${port}`);
+  console.log(`FarmaEscala (${isProduction ? 'produção' : 'desenvolvimento'}) disponível em http://localhost:${port}`);
 });

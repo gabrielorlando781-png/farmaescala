@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: farmaescala
+    runtime: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
