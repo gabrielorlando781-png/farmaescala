@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+/* Jade Green accents & custom helpers */
+:root {
+  --jade-50: #ecfdf5;
+  --jade-100: #d1fae5;
+  --jade-200: #a7f3d0;
+  --jade-300: #6ee7b7;
+  --jade-400: #34d399;
+  --jade-500: #10b981;
+  --jade-600: #059669;
+  --jade-700: #047857;
+  --jade-800: #065f46;
+  --jade-900: #064e3b;
+  --jade-950: #022c22;
+}
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #059669;
+}
+
+/* Print Styles for official pharmacy schedule display */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 8px !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  body.printing-official-board * {
+    visibility: hidden !important;
+  }
+
+  body.printing-official-board .print-page,
+  body.printing-official-board .print-page * {
+    visibility: visible !important;
+  }
+
+  .print-page {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .print-page .official-board-header {
+    margin-bottom: 3mm !important;
+    padding-bottom: 2mm !important;
+  }
+
+  .print-page .official-board-header svg {
+    display: none !important;
+  }
+
+  .print-page .official-board-table {
+    width: 100% !important;
+    margin-bottom: 3mm !important;
+    overflow: visible !important;
+  }
+
+  .print-page table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    font-size: 6.2pt !important;
+  }
+
+  .print-page th,
+  .print-page td {
+    min-width: 0 !important;
+    padding: 0.6mm 0.25mm !important;
+    line-height: 1.05 !important;
+    overflow: hidden !important;
+  }
+
+  .print-page th:first-child,
+  .print-page td:first-child {
+    width: 35mm !important;
+    padding-left: 1mm !important;
+  }
+
+  .print-page th:last-child,
+  .print-page td:last-child {
+    width: 11mm !important;
+  }
+
+  .print-page tr {
+    break-inside: avoid !important;
+  }
+
+  .print-page .official-board-legend {
+    margin-bottom: 4mm !important;
+    padding: 2mm !important;
+    font-size: 6.5pt !important;
+    break-inside: avoid !important;
+  }
+
+  .print-page .official-board-signatures {
+    padding-top: 5mm !important;
+    gap: 12mm !important;
+    font-size: 7pt !important;
+    break-inside: avoid !important;
+  }
+}

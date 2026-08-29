@@ -1,0 +1,6 @@
+{
+  "name": "FarmaEscala - Gestão de Escala Farmacêutica",
+  "description": "Sistema de gestão e planejamento de escalas para farmácias e drogarias com controle de funcionários, turnos, regras de plantão CRF e visual em verde jade.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
