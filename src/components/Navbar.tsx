@@ -7,6 +7,7 @@ interface NavbarProps {
   onSelectTab: (tab: ActiveTab) => void;
   employeesCount: number;
   shiftsCount: number;
+  simplifiedMode?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -14,6 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTab,
   employeesCount,
   shiftsCount,
+  simplifiedMode = false,
 }) => {
   const tabs: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
@@ -27,12 +29,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: <Users className="w-4 h-4" />,
       badge: employeesCount,
     },
-    {
+    ...(!simplifiedMode ? [{
       id: 'turnos',
       label: 'Turnos & Horários',
       icon: <Clock className="w-4 h-4" />,
       badge: shiftsCount,
-    },
+    }] : []),
   ];
 
   return (

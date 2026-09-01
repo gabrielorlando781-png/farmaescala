@@ -64,6 +64,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   const safeSelectedDay = Math.min(daysInMonth, Math.max(1, selectedDay));
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const shiftMap = new Map<string, ShiftType>(shifts.map((s) => [s.id, s]));
+  const editableShifts = settings.simplifiedScheduleMode
+    ? shifts.filter((shift) => shift.isDayOff || (!shift.isDayOff && shift.id === shifts.find((candidate) => !candidate.isDayOff)?.id))
+    : shifts;
 
   // Filter employees
   const filteredEmployees = employees.filter((emp) => {
@@ -314,9 +317,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                             className={`w-full py-1 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 select-none relative ${
                               getShiftBadgeClass(shift)
                             }`}
-                            title={`${shift.name}${hasNote ? ' (Com observação)' : ''}`}
+                            title={`${settings.simplifiedScheduleMode ? (shift.isDayOff ? 'Folga' : 'Trabalho') : shift.name}${hasNote ? ' (Com observação)' : ''}`}
                           >
-                            {shift.code}
+                            {settings.simplifiedScheduleMode ? (shift.isDayOff ? 'FOLGA' : 'TRAB.') : shift.code}
                             {hasNote && (
                               <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-amber-500" />
                             )}
@@ -364,7 +367,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
           dateStr={activePopover.dateStr}
           currentShiftId={currentShiftId}
           currentNote={currentNote}
-          shifts={shifts}
+          shifts={editableShifts}
           onSelectShift={(shiftId, note) => {
             onUpdateAssignment(activePopover.employeeId, activePopover.dateStr, shiftId, note);
           }}

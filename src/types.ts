@@ -90,6 +90,7 @@ export interface MonthSchedule {
 export interface AutoScheduleOptions {
   ensureCrfCoverage: boolean;
   respectPreferences: boolean;
+  spreadDaysOff?: boolean;
   limitDailyDaysOff?: boolean;
   maxEmployeesOffPerDay?: number;
 }
@@ -140,6 +141,7 @@ export interface PharmacySettings {
   minAttendantsMorning: number;
   minAttendantsAfternoon: number;
   minCashiers: number;
+  simplifiedScheduleMode?: boolean;
 }
 
 export type AlertSeverity = 'error' | 'warning' | 'info';

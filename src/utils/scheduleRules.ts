@@ -259,10 +259,13 @@ export function generateSmartSchedule(
     }
 
     const offCounts = Array<number>(7).fill(0);
-    const offResidues = (phase: number) => [
+    const offResidues = (phase: number) => (options.spreadDaysOff ? [
+      ((2 - phase) % 7 + 7) % 7,
+      ((6 - phase) % 7 + 7) % 7,
+    ] : [
       ((5 - phase) % 7 + 7) % 7,
       ((6 - phase) % 7 + 7) % 7,
-    ];
+    ]);
     const commitPhase = (employee: Employee, phase: number) => {
       cyclePhase.set(employee.id, phase);
       offResidues(phase).forEach((residue) => { offCounts[residue] += 1; });
@@ -333,8 +336,10 @@ export function generateSmartSchedule(
       const cycleDay = ((absoluteDay + phase) % 7 + 7) % 7;
       const key = `${employee.id}_${dateStr}`;
 
-      // Positions 0..4 are work; positions 5..6 are two consecutive rest days.
-      if (cycleDay >= 5) {
+      // The manager can opt into two separated days off while retaining the
+      // same five-work/two-rest weekly ratio.
+      const isRestDay = options.spreadDaysOff ? cycleDay === 2 || cycleDay === 6 : cycleDay >= 5;
+      if (isRestDay) {
         assignments[key] = dayOffShift.id;
         return;
       }

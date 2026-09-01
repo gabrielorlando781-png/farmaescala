@@ -706,13 +706,14 @@ export default function App() {
       }
 
       if (action.type === 'generate_5x2') {
+        const patch = parsePatch(action.patchJson);
         nextSchedule = generateSmartSchedule(
           currentYear,
           currentMonth,
           nextEmployees,
           nextShifts,
           nextSettings,
-          { ensureCrfCoverage: true, respectPreferences: true }
+          { ensureCrfCoverage: true, respectPreferences: true, spreadDaysOff: patch.spreadDaysOff === true }
         );
         appliedCount += 1;
       }
@@ -887,6 +888,7 @@ export default function App() {
         onSelectTab={setActiveTab}
         employeesCount={employees.filter((e) => e.active).length}
         shiftsCount={shifts.length}
+        simplifiedMode={Boolean(settings.simplifiedScheduleMode)}
       />
 
       {/* Main Content Area */}
@@ -995,6 +997,7 @@ export default function App() {
             employee.role === 'farmaceutico'
         ).length}
         activeEmployeesCount={employees.filter((employee) => employee.active).length}
+        simplifiedMode={Boolean(settings.simplifiedScheduleMode)}
         onRunAutoSchedule={handleRunAutoSchedule}
       />
 
@@ -1002,7 +1005,10 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
-        onSaveSettings={setSettings}
+        onSaveSettings={(nextSettings) => {
+          setSettings(nextSettings);
+          if (nextSettings.simplifiedScheduleMode && activeTab === 'turnos') setActiveTab('escala');
+        }}
       />
 
       <AiManagerChat

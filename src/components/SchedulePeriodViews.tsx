@@ -173,8 +173,8 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
                             } ${isManualMode && isCurrentMonth ? 'cursor-pointer hover:brightness-95 hover:ring-2 hover:ring-sky-300' : 'cursor-default'}`}
                             title={isManualMode && isCurrentMonth ? 'Editar escala deste dia' : undefined}
                           >
-                            <div>{shift.code}</div>
-                            {!shift.isDayOff && <div className="mt-0.5 font-normal opacity-70">{shift.startTime}–{shift.endTime}</div>}
+                            <div>{settings.simplifiedScheduleMode ? (shift.isDayOff ? 'FOLGA' : 'TRABALHO') : shift.code}</div>
+                            {!settings.simplifiedScheduleMode && !shift.isDayOff && <div className="mt-0.5 font-normal opacity-70">{shift.startTime}–{shift.endTime}</div>}
                           </button>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
@@ -204,7 +204,7 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
                         <div className="min-w-0">
                           <div className="truncate font-bold text-slate-800">{employee.name}</div>
                           <div className="truncate text-[10px] font-normal text-slate-500">{employee.roleTitle}</div>
-                          {absenceShift?.isSpecialLeave && <div className={`mt-1 inline-flex rounded border px-1 py-0.5 text-[9px] font-bold ${getShiftBadgeClass(absenceShift)}`}>{absenceShift.code}</div>}
+                          {absenceShift?.isSpecialLeave && <div className={`mt-1 inline-flex rounded border px-1 py-0.5 text-[9px] font-bold ${getShiftBadgeClass(absenceShift)}`}>{settings.simplifiedScheduleMode ? (absenceShift.id === 'shift_ferias' ? 'FÉRIAS' : absenceShift.id === 'shift_falta' ? 'FALTA' : 'ATESTADO') : absenceShift.code}</div>}
                         </div>
                         {isManualMode && (
                           <button

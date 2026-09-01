@@ -10,6 +10,7 @@ interface AutoScheduleModalProps {
   currentMonth: number;
   activePharmacistsCount: number;
   activeEmployeesCount: number;
+  simplifiedMode?: boolean;
   onRunAutoSchedule: (options: AutoScheduleOptions) => boolean;
 }
 
@@ -20,11 +21,13 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
   currentMonth,
   activePharmacistsCount,
   activeEmployeesCount,
+  simplifiedMode = false,
   onRunAutoSchedule,
 }) => {
   const [ensureCrfCoverage, setEnsureCrfCoverage] = useState(true);
   const [respectPreferences, setRespectPreferences] = useState(true);
   const [limitDailyDaysOff, setLimitDailyDaysOff] = useState(false);
+  const [spreadDaysOff, setSpreadDaysOff] = useState(false);
   const minimumFeasibleDaysOff = Math.max(1, Math.ceil((activeEmployeesCount * 2) / 7));
   const [maxEmployeesOffPerDay, setMaxEmployeesOffPerDay] = useState(minimumFeasibleDaysOff);
 
@@ -45,8 +48,9 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
       ? Math.floor(maxEmployeesOffPerDay)
       : minimumFeasibleDaysOff;
     const wasGenerated = onRunAutoSchedule({
-      ensureCrfCoverage: ensureCrfCoverage && activePharmacistsCount >= 2,
-      respectPreferences,
+      ensureCrfCoverage: !simplifiedMode && ensureCrfCoverage && activePharmacistsCount >= 2,
+      respectPreferences: !simplifiedMode && respectPreferences,
+      spreadDaysOff,
       limitDailyDaysOff,
       maxEmployeesOffPerDay: Math.min(
         Math.max(activeEmployeesCount, minimumFeasibleDaysOff),
@@ -66,7 +70,7 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">Criar Escala 5x2</h3>
+              <h3 className="font-bold text-sm">Criar Escala 5x2{simplifiedMode ? ' Simplificada' : ''}</h3>
               <p className="text-xs text-sky-400">
                 {getMonthName(currentMonth)} de {currentYear}
               </p>
@@ -82,11 +86,10 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          <p className="text-xs text-slate-600 leading-relaxed">
-            O sistema criará automaticamente um ciclo contínuo de 5 dias de trabalho e 2 dias de folga para cada colaborador ativo. As folgas são desencontradas para manter a equipe distribuída.
-          </p>
+          <p className="text-xs text-slate-600 leading-relaxed">O sistema criará automaticamente 5 dias de trabalho e 2 folgas por semana para cada colaborador ativo. {simplifiedMode ? 'A visualização mostrará apenas Trabalho e Folga.' : 'As folgas são desencontradas para manter a equipe distribuída.'}</p>
 
           <div className="space-y-2.5">
+            {!simplifiedMode && <>
             {/* CRF */}
             <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
               <input
@@ -127,6 +130,12 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
                   Mantém a preferência cadastrada quando o turno ainda existe.
                 </div>
               </div>
+            </label>
+            </>}
+
+            <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
+              <input type="checkbox" checked={spreadDaysOff} onChange={(e) => setSpreadDaysOff(e.target.checked)} className="w-4 h-4 text-sky-600 rounded mt-0.5" />
+              <div><div className="text-xs font-bold text-slate-800">Permitir folgas separadas</div><div className="text-[11px] text-slate-500">Mantém duas folgas na semana, mas elas podem ficar em dias diferentes em vez de serem consecutivas.</div></div>
             </label>
 
             <div className="rounded-xl border border-slate-200 p-3">
@@ -180,10 +189,10 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
               <div className="w-4 h-4 rounded-full bg-sky-600 text-white text-[10px] font-bold flex items-center justify-center mt-0.5 shrink-0">✓</div>
               <div>
                 <div className="text-xs font-bold text-slate-800">
-                  Ciclo 5x2 garantido
+                  Regra de trabalho e folga garantida
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Limita a sequência a 5 dias trabalhados e garante 2 folgas consecutivas.
+                  Mantém 5 dias trabalhados e 2 folgas por ciclo; você define se as folgas ficam juntas ou separadas.
                 </div>
               </div>
             </div>

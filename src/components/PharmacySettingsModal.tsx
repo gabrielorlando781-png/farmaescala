@@ -96,6 +96,11 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
             </div>
           </div>
 
+          <label className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50/60 p-3 cursor-pointer">
+            <input type="checkbox" checked={Boolean(formData.simplifiedScheduleMode)} onChange={(event) => setFormData({ ...formData, simplifiedScheduleMode: event.target.checked })} className="mt-0.5 h-4 w-4 rounded text-sky-600" />
+            <span><span className="block text-xs font-bold text-slate-800">Gestão simplificada, sem turnos</span><span className="mt-0.5 block text-[11px] text-slate-600">Oculta a gestão de turnos e mostra a escala somente como Trabalho ou Folga. Você pode voltar ao modo completo quando quiser.</span></span>
+          </label>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">

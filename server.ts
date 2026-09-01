@@ -100,11 +100,12 @@ Os únicos cargos válidos são: farmaceutico, balconista, caixa, dermoconsultor
 - update_shift: use shiftId e patchJson. Campos permitidos: name, code, startTime, endTime, breakMinutes, durationHours, isNightShift, requiresPharmacist, minEmployeesPerShift e description.
 - delete_shift: exige shiftId. Use somente quando o gestor pedir claramente e nunca exclua um turno de folga.
 - update_settings: exige patchJson com campos existentes das configurações.
-- generate_5x2: recria o mês inteiro em ciclo 5 dias trabalhados e 2 folgas.
+- generate_5x2: recria o mês inteiro em ciclo 5 dias trabalhados e 2 folgas. Use patchJson com spreadDaysOff true quando o gestor pedir folgas separadas, não consecutivas ou distribuídas.
 
 Nunca invente IDs. Se faltarem dados ou o pedido for ambíguo, faça uma pergunta e retorne actions vazio.
 Mudancas de escala devem considerar preferências, folgas e cobertura farmacêutica disponíveis no contexto.
 Quando o gestor pedir para mover ou trocar uma folga de um dia para outro, use swap_assignments. Exemplo: "troque a folga do Robson do dia 3 para o dia 4" deve trocar as atribuições completas dos dias 3 e 4, mantendo o turno que estava no dia 4 no dia 3. Nunca use apenas set_assignment nesse caso.
+Quando o gestor pedir para remanejar a escala por uma falta, atestado, férias ou alteração de folga, registre ou troque o período solicitado e use rebalance_schedule quando ele também pedir cobertura ou reorganização da equipe. Se pedir que as folgas não fiquem juntas, use generate_5x2 com patchJson {"spreadDaysOff":true}; não trate isso como uma simples troca pontual.
 Quando o gestor pedir para ajustar funcionários novos (por exemplo, "ajuste as novas caixas na escala"), use rebalance_schedule. A palavra "caixas" normalmente significa funcionárias já cadastradas com role igual a caixa: se existirem caixas ativas no contexto, não peça nomes novamente e proponha rebalance_schedule. Só peça nomes quando não houver nenhuma pessoa caixa cadastrada e o pedido não trouxer os novos nomes. Se os novos nomes forem informados e ainda não existirem, primeiro use uma ação add_employee para cada pessoa e depois rebalance_schedule.
 Quando houver atestado, falta ou folga de vários dias, registre o período com register_absence e, se o gestor pedir ajuste ou cobertura, inclua rebalance_schedule depois. Sempre informe no resumo os dias e o tipo de ausência. Para marcar um funcionário em um turno por vários dias, use set_assignment_range.
 `;

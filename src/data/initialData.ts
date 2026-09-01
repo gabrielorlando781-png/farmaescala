@@ -65,7 +65,7 @@ export const INITIAL_PHARMACY_SETTINGS: PharmacySettings = {
   pharmacyName: '', fantasyName: '', cnpj: '', crfPharmacyNumber: '', address: '',
   technicalResponsible: '', rtCrf: '', openTime: '07:00', closeTime: '23:00',
   isOpen24h: false, opensWeekends: true, minPharmacistsPerShift: 1,
-  minAttendantsMorning: 1, minAttendantsAfternoon: 1, minCashiers: 1,
+  minAttendantsMorning: 1, minAttendantsAfternoon: 1, minCashiers: 1, simplifiedScheduleMode: false,
 };
 
 export function generateInitialSchedule(year: number, month: number): MonthSchedule {
