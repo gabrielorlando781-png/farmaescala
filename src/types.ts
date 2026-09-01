@@ -64,6 +64,7 @@ export interface ShiftType {
   isSpecialLeave?: boolean; // Férias / Atestado
   isNightShift?: boolean;
   requiresPharmacist?: boolean;
+  minEmployeesPerShift?: number;
   description?: string;
 }
 

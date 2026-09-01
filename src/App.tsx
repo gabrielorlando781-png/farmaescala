@@ -653,6 +653,7 @@ export default function App() {
             isDayOff: false,
             isNightShift: patch.isNightShift === true,
             requiresPharmacist: patch.requiresPharmacist === true,
+            minEmployeesPerShift: Math.max(0, Math.floor(typeof patch.minEmployeesPerShift === 'number' ? patch.minEmployeesPerShift : 0)),
             description: typeof patch.description === 'string' ? patch.description : undefined,
           });
           appliedCount += 1;
@@ -663,7 +664,7 @@ export default function App() {
         const patch = parsePatch(action.patchJson);
         const shiftFields = new Set([
           'name', 'code', 'startTime', 'endTime', 'breakMinutes', 'durationHours',
-          'isNightShift', 'requiresPharmacist', 'description',
+          'isNightShift', 'requiresPharmacist', 'minEmployeesPerShift', 'description',
         ]);
         const safePatch = Object.fromEntries(Object.entries(patch).filter(([key]) => shiftFields.has(key)));
         const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -675,6 +676,7 @@ export default function App() {
         });
         if ('breakMinutes' in safePatch && (typeof safePatch.breakMinutes !== 'number' || safePatch.breakMinutes < 0)) delete safePatch.breakMinutes;
         if ('durationHours' in safePatch && (typeof safePatch.durationHours !== 'number' || safePatch.durationHours <= 0)) delete safePatch.durationHours;
+        if ('minEmployeesPerShift' in safePatch && (typeof safePatch.minEmployeesPerShift !== 'number' || safePatch.minEmployeesPerShift < 0)) delete safePatch.minEmployeesPerShift;
         ['isNightShift', 'requiresPharmacist'].forEach((field) => {
           if (field in safePatch && typeof safePatch[field] !== 'boolean') delete safePatch[field];
         });

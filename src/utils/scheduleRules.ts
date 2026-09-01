@@ -357,6 +357,36 @@ export function generateSmartSchedule(
         assignments[`${pharmacistsToday[1].id}_${dateStr}`] = afternoonShift.id;
       }
     }
+
+    // Balance working employees between shifts to honour the minimum coverage
+    // configured by the manager. This never moves an employee's 5x2 rest day.
+    const assignedCount = (shiftId: string) => workingToday.filter(
+      (employee) => assignments[`${employee.id}_${dateStr}`] === shiftId
+    ).length;
+    const requiredShifts = workingShifts
+      .filter((shift) => (shift.minEmployeesPerShift ?? 0) > 0)
+      .sort((a, b) => Number(b.requiresPharmacist) - Number(a.requiresPharmacist));
+
+    for (const targetShift of requiredShifts) {
+      const required = Math.max(0, Math.floor(targetShift.minEmployeesPerShift ?? 0));
+      while (assignedCount(targetShift.id) < required) {
+        const candidate = workingToday.find((employee) => {
+          const currentShiftId = assignments[`${employee.id}_${dateStr}`];
+          if (currentShiftId === targetShift.id) return false;
+          const currentShift = workingShifts.find((shift) => shift.id === currentShiftId);
+          const currentMinimum = currentShift?.minEmployeesPerShift ?? 0;
+          if (assignedCount(currentShiftId) <= currentMinimum) return false;
+          // Do not remove the pharmacist specifically placed to meet a CRF shift.
+          if (options.ensureCrfCoverage && employee.role === 'farmaceutico' && currentShift?.requiresPharmacist) return false;
+          return true;
+        });
+
+        if (!candidate) {
+          throw new Error(`Não há pessoas suficientes trabalhando em ${dateStr} para cumprir o mínimo de ${required} no turno ${targetShift.name}.`);
+        }
+        assignments[`${candidate.id}_${dateStr}`] = targetShift.id;
+      }
+    }
   }
 
   // Final invariant check: never return a schedule that violates the maximum.

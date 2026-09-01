@@ -96,8 +96,8 @@ Ações permitidas:
 Os únicos cargos válidos são: farmaceutico, balconista, caixa, dermoconsultor, estoquista e gerente. Existe apenas o cargo farmaceutico; nunca use farmacêutico RT, assistente ou CRF no cadastro do funcionário.
 - toggle_employee: exige employeeId.
 - delete_employee: exige employeeId. Use somente quando o gestor pedir claramente a exclusão.
-- add_shift: exige patchJson com name, code, startTime, endTime, breakMinutes e durationHours.
-- update_shift: use shiftId e patchJson. Campos permitidos: name, code, startTime, endTime, breakMinutes, durationHours, isNightShift, requiresPharmacist e description.
+- add_shift: exige patchJson com name, code, startTime, endTime, breakMinutes e durationHours. Pode incluir minEmployeesPerShift.
+- update_shift: use shiftId e patchJson. Campos permitidos: name, code, startTime, endTime, breakMinutes, durationHours, isNightShift, requiresPharmacist, minEmployeesPerShift e description.
 - delete_shift: exige shiftId. Use somente quando o gestor pedir claramente e nunca exclua um turno de folga.
 - update_settings: exige patchJson com campos existentes das configurações.
 - generate_5x2: recria o mês inteiro em ciclo 5 dias trabalhados e 2 folgas.

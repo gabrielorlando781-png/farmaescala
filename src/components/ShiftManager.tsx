@@ -38,6 +38,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
     borderColor: 'border-sky-300',
     isDayOff: false,
     requiresPharmacist: false,
+    minEmployeesPerShift: 0,
     isNightShift: false,
     description: '',
   });
@@ -57,6 +58,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
       borderColor: 'border-sky-300',
       isDayOff: false,
       requiresPharmacist: false,
+      minEmployeesPerShift: 0,
       isNightShift: false,
       description: '',
     });
@@ -101,6 +103,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
       borderColor: formData.borderColor || 'border-sky-300',
       isDayOff: Boolean(formData.isDayOff),
       requiresPharmacist: Boolean(formData.requiresPharmacist),
+      minEmployeesPerShift: formData.isDayOff ? 0 : Math.max(0, Math.floor(Number(formData.minEmployeesPerShift) || 0)),
       isNightShift: Boolean(formData.isNightShift),
       description: formData.description || '',
     };
@@ -189,6 +192,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                       {shift.breakMinutes} min
                     </span>
                   </div>
+                  {shift.minEmployeesPerShift ? <div className="flex items-center justify-between text-[11px]"><span className="text-slate-400">Mínimo na escala:</span><span className="font-bold text-slate-800">{shift.minEmployeesPerShift} pessoa(s)</span></div> : null}
                 </div>
               ) : (
                 <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 mb-2 text-[11px] text-slate-500 flex items-center gap-1.5">
@@ -341,6 +345,12 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                     <label htmlFor="requiresPharma" className="text-xs text-slate-700 cursor-pointer">
                       Exige presença de Farmacêutico (CRF)
                     </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mínimo de pessoas neste turno</label>
+                    <input type="number" min="0" step="1" value={formData.minEmployeesPerShift ?? 0} onChange={(e) => setFormData({ ...formData, minEmployeesPerShift: Math.max(0, Number(e.target.value)) })} className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500" />
+                    <p className="mt-1 text-[10px] text-slate-400">Use 0 quando não quiser uma exigência mínima para este turno.</p>
                   </div>
                 </>
               )}
