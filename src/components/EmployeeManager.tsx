@@ -54,6 +54,7 @@ const COLOR_PALETTE = [
   '#e11d48', // Rose 600
   '#475569', // Slate 600
 ];
+const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
   employees,
@@ -138,7 +139,9 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
       active: formData.active ?? true,
       hireDate: formData.hireDate || new Date().toISOString().split('T')[0],
       preferredShiftId: formData.preferredShiftId || 'shift_manha',
+      unavailableDays: formData.unavailableDays ?? [],
       notes: formData.notes?.trim() || '',
+      occurrenceHistory: editingEmployee?.occurrenceHistory ?? [],
     };
 
     onSaveEmployee(employeeToSave);
@@ -446,6 +449,17 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
                     className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Dias em que não pode trabalhar</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEK_DAYS.map((label, day) => {
+                    const selected = (formData.unavailableDays ?? []).includes(day);
+                    return <button key={label} type="button" onClick={() => setFormData({ ...formData, unavailableDays: selected ? (formData.unavailableDays ?? []).filter((item) => item !== day) : [...(formData.unavailableDays ?? []), day] })} className={`rounded-lg border px-2 py-1 text-[10px] font-bold cursor-pointer ${selected ? 'border-rose-300 bg-rose-100 text-rose-900' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>{label}</button>;
+                  })}
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">Ex.: marque Dom para impedir escala aos domingos e permitir o remanejamento automático.</p>
               </div>
 
               {/* Contact */}

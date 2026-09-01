@@ -365,6 +365,12 @@ export default function App() {
       return year === currentYear && month === currentMonth &&
         date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
     };
+    const canAssignOnDate = (employeeId: string, date: string, shiftId: string) => {
+      const employee = nextEmployees.find((candidate) => candidate.id === employeeId);
+      const shift = nextShifts.find((candidate) => candidate.id === shiftId);
+      if (!employee || !shift) return false;
+      return shift.isDayOff || !employee.unavailableDays?.includes(new Date(`${date}T12:00:00`).getDay());
+    };
     const getDateRange = (start?: string, end?: string) => {
       const finalDate = end || start;
       if (!isValidScheduleDate(start) || !isValidScheduleDate(finalDate) || !start || !finalDate || start > finalDate) return [];
@@ -433,7 +439,8 @@ export default function App() {
             const matchesRole = role === 'balconista'
               ? employee.role === 'balconista' || employee.role === 'dermoconsultor'
               : employee.role === role;
-            return employee.active && matchesRole && currentShift?.isDayOff && !currentShift.isSpecialLeave;
+            const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
+            return employee.active && matchesRole && currentShift?.isDayOff && !currentShift.isSpecialLeave && !employee.unavailableDays?.includes(dayOfWeek);
           })
           .slice(0, missing)
           .forEach((employee) => {
@@ -467,7 +474,7 @@ export default function App() {
         const employeeExists = nextEmployees.some((employee) => employee.id === action.employeeId);
         const shiftExists = nextShifts.some((shift) => shift.id === action.shiftId);
         const validDate = isValidScheduleDate(action.date);
-        if (employeeExists && shiftExists && validDate && action.employeeId && action.date && action.shiftId) {
+        if (employeeExists && shiftExists && validDate && action.employeeId && action.date && action.shiftId && canAssignOnDate(action.employeeId, action.date, action.shiftId)) {
           nextSchedule.assignments[`${action.employeeId}_${action.date}`] = action.shiftId;
           appliedCount += 1;
         }
@@ -477,7 +484,7 @@ export default function App() {
         const employeeExists = nextEmployees.some((employee) => employee.id === action.employeeId);
         const shiftExists = nextShifts.some((shift) => shift.id === action.shiftId);
         const dates = getDateRange(action.date, action.targetDate);
-        if (employeeExists && shiftExists && dates.length > 0) {
+        if (employeeExists && shiftExists && dates.length > 0 && dates.every((date) => canAssignOnDate(action.employeeId!, date, action.shiftId!))) {
           dates.forEach((date) => {
             nextSchedule.assignments[`${action.employeeId}_${date}`] = action.shiftId!;
           });
@@ -546,6 +553,7 @@ export default function App() {
           const dayOffShiftId = shifts.find((shift) => shift.isDayOff && !shift.isSpecialLeave)?.id || 'shift_folga';
           const sourceShift = nextSchedule.assignments[sourceKey] || dayOffShiftId;
           const targetShift = nextSchedule.assignments[targetKey] || dayOffShiftId;
+          if (!canAssignOnDate(action.employeeId, action.date, targetShift) || !canAssignOnDate(action.employeeId, action.targetDate, sourceShift)) return;
           nextSchedule.assignments[sourceKey] = targetShift;
           nextSchedule.assignments[targetKey] = sourceShift;
 

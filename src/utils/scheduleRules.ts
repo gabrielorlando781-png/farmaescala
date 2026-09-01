@@ -319,6 +319,25 @@ export function generateSmartSchedule(
     employee.role === 'farmaceutico';
   const isCashier = (employee: Employee) => employee.role === 'caixa';
 
+  // A fixed unavailable weekday replaces a normal rest day in the 5x2 cycle.
+  // Therefore, "não trabalha aos domingos" means Sunday is always off without
+  // accidentally creating a third day off in the same weekly cycle.
+  const restCycleDaysByEmployee = new Map<string, Set<number>>();
+  activeEmployees.forEach((employee) => {
+    const phase = cyclePhase.get(employee.id) ?? 0;
+    const standardRestDays = options.spreadDaysOff ? [2, 6] : [5, 6];
+    const unavailableCycleDays = [...new Set((employee.unavailableDays ?? []).map((dayOfWeek) => {
+      // 2024-01-07 is a Sunday; the absolute-day residue is stable for each weekday.
+      const absoluteDay = Math.floor(Date.UTC(2024, 0, 7 + dayOfWeek) / 86_400_000);
+      return ((absoluteDay + phase) % 7 + 7) % 7;
+    }))];
+    const restDays = [...unavailableCycleDays];
+    standardRestDays.forEach((restDay) => {
+      if (restDays.length < 2 && !restDays.includes(restDay)) restDays.push(restDay);
+    });
+    restCycleDaysByEmployee.set(employee.id, new Set(restDays));
+  });
+
   const preferredOrFallback = (employee: Employee, fallback: ShiftType) => {
     if (options.respectPreferences && employee.preferredShiftId && workingShiftIds.has(employee.preferredShiftId)) {
       return employee.preferredShiftId;
@@ -338,7 +357,7 @@ export function generateSmartSchedule(
 
       // The manager can opt into two separated days off while retaining the
       // same five-work/two-rest weekly ratio.
-      const isRestDay = options.spreadDaysOff ? cycleDay === 2 || cycleDay === 6 : cycleDay >= 5;
+      const isRestDay = restCycleDaysByEmployee.get(employee.id)?.has(cycleDay) ?? false;
       if (isRestDay) {
         assignments[key] = dayOffShift.id;
         return;
