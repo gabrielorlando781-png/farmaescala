@@ -88,7 +88,7 @@ Quando o gestor pedir uma mudança, crie uma proposta clara em proposalSummary e
 Ações permitidas:
 - set_assignment: exige employeeId, date e shiftId existentes.
 - set_assignment_range: exige employeeId, date, targetDate e shiftId existentes. Aplica o mesmo turno em todos os dias do intervalo, inclusive.
-- register_absence: exige employeeId, date, targetDate e patchJson com kind igual a atestado, falta ou folga. Registra o período sem escalar trabalho. Use atestado para licença médica, falta para ausência não justificada e folga para descanso programado.
+- register_absence: exige employeeId, date, targetDate e patchJson com kind igual a ferias, atestado, falta ou folga. Registra o período sem escalar trabalho. Use ferias para férias regulamentares, atestado para licença médica, falta para ausência não justificada e folga para descanso programado.
 - rebalance_schedule: redistribui a escala 5x2 para toda a equipe ativa, preservando atestados, faltas e folgas programadas registradas pela IA. Use depois de adicionar funcionários, registrar ausência ou quando o gestor pedir para reajustar a cobertura.
 - swap_assignments: exige employeeId, date e targetDate. Troca exatamente as atribuições dos dois dias do mesmo funcionário.
 - add_employee: exige patchJson com pelo menos name, role e roleTitle. Use escala_5x2 como contractType quando não for informado.

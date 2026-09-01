@@ -8,7 +8,8 @@ import {
   DayCoverageSummary,
   AutoScheduleOptions,
   ActiveTab,
-  AiAction
+  AiAction,
+  EmployeeOccurrenceType,
 } from './types';
 import { 
   INITIAL_EMPLOYEES, 
@@ -42,6 +43,14 @@ const normalizeEmployee = ({ crf: _crf, ...employee }: PersistedEmployee): Emplo
     role: (isLegacyPharmacist ? 'farmaceutico' : employee.role) as Employee['role'],
     roleTitle: isLegacyPharmacist ? 'Farmacêutico' : employee.roleTitle,
   };
+};
+
+const getOccurrenceType = (shift?: ShiftType): EmployeeOccurrenceType | undefined => {
+  if (!shift) return undefined;
+  if (shift.id === 'shift_ferias' || shift.code === 'FÉR') return 'ferias';
+  if (shift.id === 'shift_atestado' || shift.code === 'ATEST') return 'atestado';
+  if (shift.id === 'shift_falta' || shift.code === 'FALTA') return 'falta';
+  return undefined;
 };
 
 export default function App() {
@@ -199,6 +208,25 @@ export default function App() {
       ...prev,
       [scheduleId]: updatedSchedule,
     }));
+
+    const occurrenceType = getOccurrenceType(shifts.find((shift) => shift.id === shiftId));
+    if (occurrenceType) {
+      setEmployees((current) => current.map((employee) => {
+        if (employee.id !== employeeId) return employee;
+        const history = employee.occurrenceHistory ?? [];
+        const existing = history.find((item) => item.type === occurrenceType && item.startDate === dateStr && item.endDate === dateStr);
+        const occurrence = {
+          id: existing?.id ?? `occ_${employeeId}_${occurrenceType}_${dateStr}`,
+          type: occurrenceType,
+          startDate: dateStr,
+          endDate: dateStr,
+          note: note?.trim() || undefined,
+          recordedAt: existing?.recordedAt ?? new Date().toISOString(),
+          source: 'manual' as const,
+        };
+        return { ...employee, occurrenceHistory: existing ? history.map((item) => item.id === existing.id ? occurrence : item) : [...history, occurrence] };
+      }));
+    }
   };
 
   // Bulk fill employee pattern
@@ -464,6 +492,8 @@ export default function App() {
         const dates = getDateRange(action.date, action.targetDate);
         const absenceShiftId = kind === 'atestado'
           ? nextShifts.find((shift) => shift.id === 'shift_atestado' || shift.code === 'ATEST')?.id
+          : kind === 'ferias'
+            ? nextShifts.find((shift) => shift.id === 'shift_ferias' || shift.code === 'FÉR')?.id
           : kind === 'falta'
             ? ensureAbsenceShift()
             : kind === 'folga'
@@ -476,6 +506,24 @@ export default function App() {
             nextSchedule.assignments[key] = absenceShiftId;
             nextSchedule.customNotes![key] = `IA: período protegido — ${kind}${extraNote}`;
           });
+          if (kind === 'ferias' || kind === 'atestado' || kind === 'falta') {
+            const occurrenceId = `occ_${action.employeeId}_${kind}_${dates[0]}_${dates[dates.length - 1]}`;
+            nextEmployees = nextEmployees.map((employee) => employee.id !== action.employeeId ? employee : {
+              ...employee,
+              occurrenceHistory: [
+                ...(employee.occurrenceHistory ?? []).filter((item) => item.id !== occurrenceId),
+                {
+                  id: occurrenceId,
+                  type: kind,
+                  startDate: dates[0],
+                  endDate: dates[dates.length - 1],
+                  note: typeof patch.note === 'string' ? patch.note.trim() || undefined : undefined,
+                  recordedAt: new Date().toISOString(),
+                  source: 'ia',
+                },
+              ],
+            });
+          }
           appliedCount += 1;
         }
       }

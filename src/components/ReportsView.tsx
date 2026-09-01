@@ -343,7 +343,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <td
                           key={day}
                           className={`border border-slate-300 p-0.5 text-center text-[10px] font-bold ${
-                            shift.isDayOff ? 'bg-slate-100 text-slate-500' : 'text-slate-900'
+                            shift.id === 'shift_ferias' || shift.code === 'FÉR'
+                              ? 'bg-amber-100 text-amber-950'
+                              : shift.id === 'shift_atestado' || shift.id === 'shift_falta' || shift.code === 'ATEST' || shift.code === 'FALTA'
+                                ? 'bg-rose-100 text-rose-950'
+                                : shift.isDayOff ? 'bg-slate-100 text-slate-500' : 'text-slate-900'
                           }`}
                         >
                           {shift.code}

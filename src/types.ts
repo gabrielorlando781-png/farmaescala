@@ -33,6 +33,19 @@ export interface Employee {
   preferredShiftId?: string; // Preferência de turno
   unavailableDays?: number[]; // 0 = Domingo, 1 = Segunda, etc.
   notes?: string;
+  occurrenceHistory?: EmployeeOccurrence[];
+}
+
+export type EmployeeOccurrenceType = 'ferias' | 'atestado' | 'falta';
+
+export interface EmployeeOccurrence {
+  id: string;
+  type: EmployeeOccurrenceType;
+  startDate: string;
+  endDate: string;
+  note?: string;
+  recordedAt: string;
+  source: 'manual' | 'ia';
 }
 
 export interface ShiftType {

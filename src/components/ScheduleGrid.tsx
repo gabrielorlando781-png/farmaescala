@@ -108,6 +108,12 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     });
   };
 
+  const getShiftBadgeClass = (shift: ShiftType) => {
+    if (shift.id === 'shift_ferias' || shift.code === 'FÉR') return 'bg-amber-100 text-amber-950 border-amber-400 ring-1 ring-amber-300';
+    if (shift.id === 'shift_atestado' || shift.id === 'shift_falta' || shift.code === 'ATEST' || shift.code === 'FALTA') return 'bg-rose-100 text-rose-950 border-rose-400 ring-1 ring-rose-300';
+    return shift.isDayOff ? 'bg-slate-100 text-slate-500 border-slate-200' : `${shift.bgColor} ${shift.textColor} ${shift.borderColor}`;
+  };
+
   return (
     <div className="space-y-4">
       {/* Clean Toolbar */}
@@ -306,9 +312,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                         >
                           <div
                             className={`w-full py-1 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 select-none relative ${
-                              shift.isDayOff
-                                ? 'bg-slate-100 text-slate-500 border-slate-200'
-                                : `${shift.bgColor} ${shift.textColor} ${shift.borderColor}`
+                              getShiftBadgeClass(shift)
                             }`}
                             title={`${shift.name}${hasNote ? ' (Com observação)' : ''}`}
                           >

@@ -10,7 +10,10 @@ import {
   Clock, 
   Check, 
   X, 
-  Briefcase
+  Briefcase,
+  AlertTriangle,
+  CalendarDays,
+  ChevronDown
 } from 'lucide-react';
 
 interface EmployeeManagerProps {
@@ -63,6 +66,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
   const [roleFilter, setRoleFilter] = useState('todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [expandedHistoryEmployeeId, setExpandedHistoryEmployeeId] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Employee>>({
@@ -229,6 +233,9 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
       {/* Employees Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {filteredEmployees.map((emp) => {
+          const history = [...(emp.occurrenceHistory ?? [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
+          const isHistoryExpanded = expandedHistoryEmployeeId === emp.id;
+          const visibleHistory = isHistoryExpanded ? history : history.slice(0, 2);
           return (
             <div
               key={emp.id}
@@ -300,6 +307,27 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
                   <p className="text-[10px] text-slate-400 italic line-clamp-1">
                     {emp.notes}
                   </p>
+                )}
+
+                {history.length > 0 && (
+                  <div className="mt-2 rounded-xl border border-amber-100 bg-amber-50/70 p-2">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-900"><AlertTriangle className="h-3 w-3" /> Histórico de ocorrências</span>
+                      <span className="text-[10px] text-amber-700">{history.length}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {visibleHistory.map((occurrence) => {
+                        const isVacation = occurrence.type === 'ferias';
+                        const label = occurrence.type === 'ferias' ? 'Férias' : occurrence.type === 'atestado' ? 'Atestado' : 'Falta';
+                        const period = occurrence.startDate === occurrence.endDate ? new Date(`${occurrence.startDate}T12:00:00`).toLocaleDateString('pt-BR') : `${new Date(`${occurrence.startDate}T12:00:00`).toLocaleDateString('pt-BR')} a ${new Date(`${occurrence.endDate}T12:00:00`).toLocaleDateString('pt-BR')}`;
+                        return <div key={occurrence.id} className={`rounded-lg border px-1.5 py-1 text-[10px] ${isVacation ? 'border-amber-300 bg-amber-100 text-amber-950' : 'border-rose-300 bg-rose-100 text-rose-950'}`}>
+                          <div className="flex items-center justify-between gap-1"><span className="font-bold">{label}</span><span className="flex shrink-0 items-center gap-0.5"><CalendarDays className="h-2.5 w-2.5" />{period}</span></div>
+                          {occurrence.note && <div className="mt-0.5 truncate opacity-80">{occurrence.note}</div>}
+                        </div>;
+                      })}
+                    </div>
+                    {history.length > 2 && <button type="button" onClick={() => setExpandedHistoryEmployeeId(isHistoryExpanded ? null : emp.id)} className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-800 hover:text-amber-950 cursor-pointer">{isHistoryExpanded ? 'Mostrar menos' : `Ver mais ${history.length - 2}`}<ChevronDown className={`h-3 w-3 transition-transform ${isHistoryExpanded ? 'rotate-180' : ''}`} /></button>}
+                  </div>
                 )}
               </div>
 

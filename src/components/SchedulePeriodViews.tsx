@@ -42,6 +42,11 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
   const selectedDate = new Date(currentYear, currentMonth - 1, selectedDay);
   const shiftMap = new Map<string, ShiftType>(shifts.map((shift) => [shift.id, shift]));
   const dayOffShift = shifts.find((shift) => shift.isDayOff && !shift.isSpecialLeave);
+  const getShiftBadgeClass = (shift: ShiftType) => {
+    if (shift.id === 'shift_ferias' || shift.code === 'FÉR') return 'border-amber-400 bg-amber-100 text-amber-950 ring-1 ring-amber-300';
+    if (shift.id === 'shift_atestado' || shift.id === 'shift_falta' || shift.code === 'ATEST' || shift.code === 'FALTA') return 'border-rose-400 bg-rose-100 text-rose-950 ring-1 ring-rose-300';
+    return shift.isDayOff ? 'border-slate-200 bg-slate-100 text-slate-500' : `${shift.bgColor} ${shift.textColor} ${shift.borderColor}`;
+  };
 
   const getShift = (employeeId: string, date: Date) => {
     if (date.getMonth() !== currentMonth - 1 || date.getFullYear() !== currentYear) return undefined;
@@ -164,7 +169,7 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
                             disabled={!isManualMode || !isCurrentMonth}
                             onClick={(event) => onEditAssignment(employee.id, formatDateKey(date), event)}
                             className={`w-full rounded-lg border px-2 py-1.5 text-[10px] font-bold transition ${
-                              shift.isDayOff ? 'border-slate-200 bg-slate-100 text-slate-500' : `${shift.bgColor} ${shift.textColor} ${shift.borderColor}`
+                              getShiftBadgeClass(shift)
                             } ${isManualMode && isCurrentMonth ? 'cursor-pointer hover:brightness-95 hover:ring-2 hover:ring-sky-300' : 'cursor-default'}`}
                             title={isManualMode && isCurrentMonth ? 'Editar escala deste dia' : undefined}
                           >
@@ -192,12 +197,14 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
               <thead>
                 <tr className="border-b border-slate-200 bg-white">
                   <th className="sticky left-0 z-10 w-20 min-w-[80px] border-r border-slate-200 bg-white p-2 text-left font-bold text-slate-600">Hora</th>
-                  {employees.map((employee) => (
-                    <th key={employee.id} className="min-w-[140px] border-r border-slate-100 p-2 text-left">
+                  {employees.map((employee) => {
+                    const absenceShift = getShift(employee.id, selectedDate);
+                    return <th key={employee.id} className="min-w-[140px] border-r border-slate-100 p-2 text-left">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="truncate font-bold text-slate-800">{employee.name}</div>
                           <div className="truncate text-[10px] font-normal text-slate-500">{employee.roleTitle}</div>
+                          {absenceShift?.isSpecialLeave && <div className={`mt-1 inline-flex rounded border px-1 py-0.5 text-[9px] font-bold ${getShiftBadgeClass(absenceShift)}`}>{absenceShift.code}</div>}
                         </div>
                         {isManualMode && (
                           <button
@@ -211,8 +218,8 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
                           </button>
                         )}
                       </div>
-                    </th>
-                  ))}
+                    </th>;
+                  })}
                 </tr>
               </thead>
               <tbody>

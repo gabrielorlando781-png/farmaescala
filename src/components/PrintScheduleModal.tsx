@@ -165,11 +165,13 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                         const sId = schedule.assignments[`${emp.id}_${dateStr}`] || 'shift_folga';
                         const s = shiftMap.get(sId);
                         const isFolga = s?.isDayOff;
+                        const isVacation = s?.id === 'shift_ferias' || s?.code === 'FÉR';
+                        const isAbsence = s?.id === 'shift_atestado' || s?.id === 'shift_falta' || s?.code === 'ATEST' || s?.code === 'FALTA';
                         return (
                           <td
                             key={d}
                             className={`border border-slate-300 p-0.5 text-center font-bold ${
-                              isFolga ? 'text-slate-400 bg-slate-50' : 'text-sky-900 bg-sky-50/50'
+                              isVacation ? 'text-amber-950 bg-amber-100' : isAbsence ? 'text-rose-950 bg-rose-100' : isFolga ? 'text-slate-400 bg-slate-50' : 'text-sky-900 bg-sky-50/50'
                             }`}
                           >
                             {s?.code || '-'}
