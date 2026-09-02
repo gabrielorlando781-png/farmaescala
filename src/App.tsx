@@ -341,7 +341,7 @@ export default function App() {
 
     const employeeFields = new Set([
       'name', 'role', 'roleTitle', 'contractType', 'weeklyHoursTarget', 'email', 'phone',
-      'active', 'preferredShiftId', 'unavailableDays', 'notes',
+      'active', 'preferredShiftId', 'unavailableDays', 'preferredDaysOff', 'notes',
     ]);
     const employeeRoles = new Set<Employee['role']>([
       'farmaceutico', 'balconista', 'caixa', 'dermoconsultor', 'estoquista', 'gerente',
@@ -577,6 +577,7 @@ export default function App() {
         if ('weeklyHoursTarget' in safePatch && (typeof safePatch.weeklyHoursTarget !== 'number' || !Number.isFinite(safePatch.weeklyHoursTarget) || safePatch.weeklyHoursTarget <= 0)) delete safePatch.weeklyHoursTarget;
         if ('active' in safePatch && typeof safePatch.active !== 'boolean') delete safePatch.active;
         if ('unavailableDays' in safePatch && (!Array.isArray(safePatch.unavailableDays) || safePatch.unavailableDays.some((day) => !Number.isInteger(day) || day < 0 || day > 6))) delete safePatch.unavailableDays;
+        if ('preferredDaysOff' in safePatch && (!Array.isArray(safePatch.preferredDaysOff) || safePatch.preferredDaysOff.some((day) => !Number.isInteger(day) || day < 0 || day > 6))) delete safePatch.preferredDaysOff;
         if (safePatch.preferredShiftId && !nextShifts.some((shift) => shift.id === safePatch.preferredShiftId)) delete safePatch.preferredShiftId;
         ['name', 'roleTitle', 'email', 'phone', 'notes'].forEach((field) => {
           if (field in safePatch && typeof safePatch[field] !== 'string') delete safePatch[field];
@@ -613,6 +614,7 @@ export default function App() {
             preferredShiftId: typeof patch.preferredShiftId === 'string' && nextShifts.some((shift) => shift.id === patch.preferredShiftId)
               ? patch.preferredShiftId
               : undefined,
+            preferredDaysOff: Array.isArray(patch.preferredDaysOff) ? patch.preferredDaysOff.filter((day): day is number => Number.isInteger(day) && day >= 0 && day <= 6) : undefined,
             notes: typeof patch.notes === 'string' ? patch.notes : undefined,
           });
           appliedCount += 1;

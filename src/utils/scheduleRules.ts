@@ -320,18 +320,25 @@ export function generateSmartSchedule(
   const isCashier = (employee: Employee) => employee.role === 'caixa';
 
   // A fixed unavailable weekday replaces a normal rest day in the 5x2 cycle.
-  // Therefore, "não trabalha aos domingos" means Sunday is always off without
-  // accidentally creating a third day off in the same weekly cycle.
+  // A preferred day off is softer: it is considered only when separated days
+  // off are enabled and never replaces an unavailable-day restriction.
   const restCycleDaysByEmployee = new Map<string, Set<number>>();
   activeEmployees.forEach((employee) => {
     const phase = cyclePhase.get(employee.id) ?? 0;
     const standardRestDays = options.spreadDaysOff ? [2, 6] : [5, 6];
-    const unavailableCycleDays = [...new Set((employee.unavailableDays ?? []).map((dayOfWeek) => {
+    const toCycleDay = (dayOfWeek: number) => {
       // 2024-01-07 is a Sunday; the absolute-day residue is stable for each weekday.
       const absoluteDay = Math.floor(Date.UTC(2024, 0, 7 + dayOfWeek) / 86_400_000);
       return ((absoluteDay + phase) % 7 + 7) % 7;
-    }))];
+    };
+    const unavailableCycleDays = [...new Set((employee.unavailableDays ?? []).map(toCycleDay))];
+    const preferredCycleDays = options.spreadDaysOff
+      ? [...new Set((employee.preferredDaysOff ?? []).map(toCycleDay))]
+      : [];
     const restDays = [...unavailableCycleDays];
+    preferredCycleDays.forEach((restDay) => {
+      if (restDays.length < 2 && !restDays.includes(restDay)) restDays.push(restDay);
+    });
     standardRestDays.forEach((restDay) => {
       if (restDays.length < 2 && !restDays.includes(restDay)) restDays.push(restDay);
     });

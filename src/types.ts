@@ -32,6 +32,7 @@ export interface Employee {
   hireDate: string;
   preferredShiftId?: string; // Preferência de turno
   unavailableDays?: number[]; // 0 = Domingo, 1 = Segunda, etc.
+  preferredDaysOff?: number[]; // Preferências opcionais de folga por dia da semana
   notes?: string;
   occurrenceHistory?: EmployeeOccurrence[];
 }

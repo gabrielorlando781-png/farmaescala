@@ -140,6 +140,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
       hireDate: formData.hireDate || new Date().toISOString().split('T')[0],
       preferredShiftId: formData.preferredShiftId || 'shift_manha',
       unavailableDays: formData.unavailableDays ?? [],
+      preferredDaysOff: formData.preferredDaysOff ?? [],
       notes: formData.notes?.trim() || '',
       occurrenceHistory: editingEmployee?.occurrenceHistory ?? [],
     };
@@ -460,6 +461,17 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
                   })}
                 </div>
                 <p className="mt-1 text-[10px] text-slate-400">Ex.: marque Dom para impedir escala aos domingos e permitir o remanejamento automático.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Preferência de folga (opcional)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEK_DAYS.map((label, day) => {
+                    const selected = (formData.preferredDaysOff ?? []).includes(day);
+                    return <button key={label} type="button" onClick={() => setFormData({ ...formData, preferredDaysOff: selected ? (formData.preferredDaysOff ?? []).filter((item) => item !== day) : [...(formData.preferredDaysOff ?? []), day] })} className={`rounded-lg border px-2 py-1 text-[10px] font-bold cursor-pointer ${selected ? 'border-amber-300 bg-amber-100 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>{label}</button>;
+                  })}
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">Usada ao criar escala com folgas separadas; o sistema tenta atender sem comprometer a cobertura.</p>
               </div>
 
               {/* Contact */}
