@@ -76,7 +76,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const generateWhatsappText = () => {
     let text = `📋 *ESCALA MENSAL - ${settings.fantasyName.toUpperCase()}*\n`;
     text += `📅 *Mês:* ${getMonthName(currentMonth)} / ${currentYear}\n`;
-    text += `🏥 *Gerente da Farmácia:* ${settings.technicalResponsible}${settings.rtCrf ? ` (${settings.rtCrf})` : ''}\n`;
+    text += `🏥 *Gerente responsável:* ${settings.technicalResponsible}\n`;
     text += `──────────────────────\n\n`;
 
     employees.filter((e) => e.active).forEach((emp) => {
@@ -262,12 +262,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <ShieldCheck className="w-6 h-6 text-emerald-700" />
                 <span>{settings.fantasyName}</span>
               </div>
-              <div className="text-xs text-slate-600 font-medium">
-                {settings.pharmacyName} • CNPJ: {settings.cnpj}
-              </div>
-              <div className="text-xs text-slate-500">
-                {settings.address} • Certidão de Regularidade: {settings.crfPharmacyNumber}
-              </div>
             </div>
 
             <div className="text-right">
@@ -286,8 +280,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {/* RT Information */}
           <div className="mt-3 pt-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-700">
             <div>
-              <span className="font-bold text-emerald-950">Gerente da Farmácia:</span>{' '}
-              {settings.technicalResponsible} ({settings.rtCrf})
+              <span className="font-bold text-emerald-950">Gerente responsável:</span>{' '}
+              {settings.technicalResponsible}
             </div>
             <div>
               <span className="font-bold text-emerald-950">Status:</span> Publicada e Aprovada
@@ -382,7 +376,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {settings.technicalResponsible}
             </div>
             <div className="text-slate-600 text-[11px]">
-              Gerente da Farmácia{settings.rtCrf ? ` (${settings.rtCrf})` : ''}
+              Gerente responsável
             </div>
           </div>
 

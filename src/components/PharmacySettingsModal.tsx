@@ -58,73 +58,14 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Razão Social
-            </label>
-            <input
-              type="text"
-              value={formData.pharmacyName}
-              onChange={(e) => setFormData({ ...formData, pharmacyName: e.target.value })}
-              className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                CNPJ
-              </label>
-              <input
-                type="text"
-                value={formData.cnpj}
-                onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
-                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                CRF da Farmácia
-              </label>
-              <input
-                type="text"
-                value={formData.crfPharmacyNumber}
-                onChange={(e) => setFormData({ ...formData, crfPharmacyNumber: e.target.value })}
-                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500"
-              />
-            </div>
-          </div>
-
           <label className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50/60 p-3 cursor-pointer">
             <input type="checkbox" checked={Boolean(formData.simplifiedScheduleMode)} onChange={(event) => setFormData({ ...formData, simplifiedScheduleMode: event.target.checked })} className="mt-0.5 h-4 w-4 rounded text-sky-600" />
-            <span><span className="block text-xs font-bold text-slate-800">Gestão simplificada, sem turnos</span><span className="mt-0.5 block text-[11px] text-slate-600">Oculta a gestão de turnos e mostra a escala somente como Trabalho ou Folga. Você pode voltar ao modo completo quando quiser.</span></span>
+            <span><span className="block text-xs font-bold text-slate-800">Gestão simplificada</span><span className="mt-0.5 block text-[11px] text-slate-600">Para lojas sem horários: mostra Trabalho, Folga e ausências.</span></span>
           </label>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Gerente da Farmácia
-              </label>
-              <input
-                type="text"
-                value={formData.technicalResponsible}
-                onChange={(e) => setFormData({ ...formData, technicalResponsible: e.target.value })}
-                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Registro profissional (opcional)
-              </label>
-              <input
-                type="text"
-                value={formData.rtCrf}
-                onChange={(e) => setFormData({ ...formData, rtCrf: e.target.value })}
-                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Gerente responsável</label>
+            <input type="text" value={formData.technicalResponsible} onChange={(e) => setFormData({ ...formData, technicalResponsible: e.target.value })} placeholder="Nome do gerente responsável" className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500" />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

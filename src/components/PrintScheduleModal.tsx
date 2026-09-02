@@ -107,7 +107,6 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
             <div className="border-b border-slate-200 pb-3 flex justify-between items-start">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">{settings.fantasyName}</h2>
-                <p className="text-xs text-slate-500">{settings.pharmacyName} • CNPJ: {settings.cnpj}</p>
                 <p className="text-xs text-slate-500">{settings.address}</p>
               </div>
               <div className="text-right">
@@ -118,7 +117,7 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                   {getMonthName(currentMonth)} / {currentYear}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Gerente da Farmácia: {settings.technicalResponsible}{settings.rtCrf ? ` (${settings.rtCrf})` : ''}
+                  Gerente responsável: {settings.technicalResponsible}
                 </div>
               </div>
             </div>

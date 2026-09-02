@@ -54,11 +54,6 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-base font-bold text-white leading-tight">
                 {settings.fantasyName || 'FarmaEscala'}
               </h1>
-              {settings.rtCrf && (
-                <span className="text-xs text-sky-400 font-medium hidden sm:inline">
-                  • {settings.rtCrf}
-                </span>
-              )}
             </div>
             <p className="text-[11px] text-slate-400">
               {settings.technicalResponsible
