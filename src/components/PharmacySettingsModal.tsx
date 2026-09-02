@@ -47,7 +47,7 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-3.5 max-h-[80vh] overflow-y-auto">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Nome Fantasia da Farmácia *
+              Nome da Farmácia *
             </label>
             <input
               type="text"
