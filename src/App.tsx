@@ -752,7 +752,7 @@ export default function App() {
       status: newStatus,
       publishedAt: newStatus === 'publicado' ? new Date().toISOString() : undefined,
       publishedBy: newStatus === 'publicado'
-        ? (settings.technicalResponsible ? `${settings.technicalResponsible} (RT)` : 'Usuário')
+        ? (settings.technicalResponsible ? settings.technicalResponsible : 'Gestor')
         : undefined,
     };
 
@@ -978,7 +978,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
             <span className="font-semibold text-emerald-900">FarmaEscala</span>
-            <span>• Gestão de Escalas e Assistência Farmacêutica CRF</span>
+            <span>• Gestão de Escalas</span>
           </div>
 
           <div className="flex items-center gap-4 text-[11px]">

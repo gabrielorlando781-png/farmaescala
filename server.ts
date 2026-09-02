@@ -11,7 +11,7 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.argv.includes('--production');
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '8mb' }));
 
 const responseSchema = {
   type: 'object',
@@ -39,6 +39,39 @@ const responseSchema = {
   },
   required: ['reply', 'proposalSummary', 'actions'],
 };
+
+app.post('/api/ai/transcribe', async (request, response) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const { audioBase64, mimeType } = request.body ?? {};
+    if (!apiKey) return response.status(503).json({ error: 'A chave GEMINI_API_KEY não está configurada no servidor.' });
+    if (typeof audioBase64 !== 'string' || !audioBase64 || audioBase64.length > 6_000_000) {
+      return response.status(400).json({ error: 'Áudio inválido ou maior que o limite de gravação.' });
+    }
+    if (typeof mimeType !== 'string' || !mimeType.startsWith('audio/')) {
+      return response.status(400).json({ error: 'Formato de áudio inválido.' });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    const result = await ai.models.generateContent({
+      model: process.env.GEMINI_AUDIO_MODEL || 'gemini-2.5-flash',
+      contents: [{
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType, data: audioBase64 } },
+          { text: 'Transcreva fielmente este áudio em português do Brasil. Retorne somente a transcrição, sem explicações, títulos ou comentários.' },
+        ],
+      }],
+      config: { temperature: 0, maxOutputTokens: 800 },
+    });
+    const transcription = result.text?.trim();
+    if (!transcription) return response.status(422).json({ error: 'Não foi possível identificar uma mensagem no áudio.' });
+    return response.json({ transcription });
+  } catch (error) {
+    console.error('Audio transcription error:', error);
+    return response.status(500).json({ error: 'Não foi possível transcrever o áudio agora. Tente novamente.' });
+  }
+});
 
 app.post('/api/ai/chat', async (request, response) => {
   try {

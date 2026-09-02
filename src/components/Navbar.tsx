@@ -17,6 +17,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   shiftsCount,
   simplifiedMode = false,
 }) => {
+  const shiftTab: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: number } = {
+    id: 'turnos',
+    label: 'Turnos & Horários',
+    icon: <Clock className="w-4 h-4" />,
+    badge: shiftsCount,
+  };
   const tabs: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
       id: 'escala',
@@ -29,12 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: <Users className="w-4 h-4" />,
       badge: employeesCount,
     },
-    ...(!simplifiedMode ? [{
-      id: 'turnos',
-      label: 'Turnos & Horários',
-      icon: <Clock className="w-4 h-4" />,
-      badge: shiftsCount,
-    }] : []),
+    ...(!simplifiedMode ? [shiftTab] : []),
   ];
 
   return (

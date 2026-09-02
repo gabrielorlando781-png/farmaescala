@@ -62,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <p className="text-[11px] text-slate-400">
               {settings.technicalResponsible
-                ? `RT: ${settings.technicalResponsible}`
+                ? `Gerente: ${settings.technicalResponsible}`
                 : 'Configure os dados da farmácia'}
             </p>
           </div>

@@ -118,7 +118,7 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                   {getMonthName(currentMonth)} / {currentYear}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  RT: {settings.technicalResponsible} ({settings.rtCrf})
+                  Gerente da Farmácia: {settings.technicalResponsible}{settings.rtCrf ? ` (${settings.rtCrf})` : ''}
                 </div>
               </div>
             </div>

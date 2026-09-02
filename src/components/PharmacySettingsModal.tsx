@@ -32,8 +32,8 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
           <div className="flex items-center gap-2.5">
             <Building2 className="w-5 h-5 text-sky-400" />
             <div>
-              <h3 className="font-bold text-sm">Dados da Farmácia</h3>
-              <p className="text-xs text-sky-400">Parâmetros e responsável técnico</p>
+              <h3 className="font-bold text-sm">Configurações da Farmácia</h3>
+              <p className="text-xs text-sky-400">Dados da unidade e do gerente</p>
             </div>
           </div>
           <button
@@ -104,7 +104,7 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Farmacêutica RT
+                Gerente da Farmácia
               </label>
               <input
                 type="text"
@@ -116,7 +116,7 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                CRF da RT
+                Registro profissional (opcional)
               </label>
               <input
                 type="text"

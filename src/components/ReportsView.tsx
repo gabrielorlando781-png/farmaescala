@@ -76,7 +76,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const generateWhatsappText = () => {
     let text = `📋 *ESCALA MENSAL - ${settings.fantasyName.toUpperCase()}*\n`;
     text += `📅 *Mês:* ${getMonthName(currentMonth)} / ${currentYear}\n`;
-    text += `🏥 *Farmacêutica RT:* ${settings.technicalResponsible} (${settings.rtCrf})\n`;
+    text += `🏥 *Gerente da Farmácia:* ${settings.technicalResponsible}${settings.rtCrf ? ` (${settings.rtCrf})` : ''}\n`;
     text += `──────────────────────\n\n`;
 
     employees.filter((e) => e.active).forEach((emp) => {
@@ -221,7 +221,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div>
           <h2 className="text-base font-bold text-slate-800">Mural Oficial da Farmácia & Exportação</h2>
           <p className="text-xs text-slate-500">
-            Formato oficial com assinatura da Responsável Técnica para afixação e envio
+            Formato oficial para afixação e envio
           </p>
         </div>
 
@@ -286,7 +286,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {/* RT Information */}
           <div className="mt-3 pt-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-700">
             <div>
-              <span className="font-bold text-emerald-950">Responsável Técnica (RT):</span>{' '}
+              <span className="font-bold text-emerald-950">Gerente da Farmácia:</span>{' '}
               {settings.technicalResponsible} ({settings.rtCrf})
             </div>
             <div>
@@ -382,7 +382,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {settings.technicalResponsible}
             </div>
             <div className="text-slate-600 text-[11px]">
-              Farmacêutica Responsável Técnica ({settings.rtCrf})
+              Gerente da Farmácia{settings.rtCrf ? ` (${settings.rtCrf})` : ''}
             </div>
           </div>
 
