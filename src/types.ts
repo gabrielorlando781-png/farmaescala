@@ -142,6 +142,8 @@ export interface PharmacySettings {
   minAttendantsMorning: number;
   minAttendantsAfternoon: number;
   minCashiers: number;
+  scheduleViewMode?: 'complete' | 'simplified' | 'days_off';
+  /** Mantido para compatibilidade com configurações salvas em versões anteriores. */
   simplifiedScheduleMode?: boolean;
 }
 

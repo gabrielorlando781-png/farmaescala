@@ -11,6 +11,7 @@ interface AutoScheduleModalProps {
   activePharmacistsCount: number;
   activeEmployeesCount: number;
   simplifiedMode?: boolean;
+  daysOffOnlyMode?: boolean;
   onRunAutoSchedule: (options: AutoScheduleOptions) => boolean;
 }
 
@@ -22,6 +23,7 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
   activePharmacistsCount,
   activeEmployeesCount,
   simplifiedMode = false,
+  daysOffOnlyMode = false,
   onRunAutoSchedule,
 }) => {
   const [ensureCrfCoverage, setEnsureCrfCoverage] = useState(true);
@@ -70,7 +72,7 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">Criar Escala 5x2{simplifiedMode ? ' Simplificada' : ''}</h3>
+              <h3 className="font-bold text-sm">Criar Escala 5x2{daysOffOnlyMode ? ' — Folgas' : simplifiedMode ? ' Simplificada' : ''}</h3>
               <p className="text-xs text-sky-400">
                 {getMonthName(currentMonth)} de {currentYear}
               </p>
@@ -86,7 +88,7 @@ export const AutoScheduleModal: React.FC<AutoScheduleModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          <p className="text-xs text-slate-600 leading-relaxed">O sistema criará automaticamente 5 dias de trabalho e 2 folgas por semana para cada colaborador ativo. {simplifiedMode ? 'A visualização mostrará apenas Trabalho e Folga.' : 'As folgas são desencontradas para manter a equipe distribuída.'}</p>
+          <p className="text-xs text-slate-600 leading-relaxed">O sistema criará automaticamente 5 dias de trabalho e 2 folgas por semana para cada colaborador ativo. {daysOffOnlyMode ? 'Na grade, somente as folgas aparecerão marcadas com X.' : simplifiedMode ? 'A visualização mostrará apenas Trabalho e Folga.' : 'As folgas são desencontradas para manter a equipe distribuída.'}</p>
 
           <div className="space-y-2.5">
             {!simplifiedMode && <>

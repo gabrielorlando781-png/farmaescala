@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PharmacySettings } from '../types';
-import { Building2, X } from 'lucide-react';
+import { CalendarDays, Check, Settings, X } from 'lucide-react';
+import { getScheduleViewMode, ScheduleViewMode } from '../utils/scheduleViewMode';
 
 interface PharmacySettingsModalProps {
   isOpen: boolean;
@@ -17,6 +18,10 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<PharmacySettings>({ ...settings });
 
+  useEffect(() => {
+    if (isOpen) setFormData({ ...settings });
+  }, [isOpen, settings]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -30,7 +35,7 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
       <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Building2 className="w-5 h-5 text-sky-400" />
+            <Settings className="w-5 h-5 text-sky-400" />
             <div>
               <h3 className="font-bold text-sm">Configurações da Farmácia</h3>
               <p className="text-xs text-sky-400">Dados da unidade e do gerente</p>
@@ -58,10 +63,49 @@ export const PharmacySettingsModal: React.FC<PharmacySettingsModalProps> = ({
             />
           </div>
 
-          <label className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50/60 p-3 cursor-pointer">
-            <input type="checkbox" checked={Boolean(formData.simplifiedScheduleMode)} onChange={(event) => setFormData({ ...formData, simplifiedScheduleMode: event.target.checked })} className="mt-0.5 h-4 w-4 rounded text-sky-600" />
-            <span><span className="block text-xs font-bold text-slate-800">Gestão simplificada</span><span className="mt-0.5 block text-[11px] text-slate-600">Para lojas sem horários: mostra Trabalho, Folga e ausências.</span></span>
-          </label>
+          <fieldset>
+            <legend className="mb-2 block text-xs font-bold text-slate-700">Modo da escala</legend>
+            <div className="grid gap-2">
+              {([
+                { value: 'complete', title: 'Completa', description: 'Exibe os turnos, horários, folgas e ausências.' },
+                { value: 'simplified', title: 'Simplificada', description: 'Mostra apenas Trabalho, Folga e ausências.' },
+                { value: 'days_off', title: 'Somente folgas', description: 'Dias trabalhados ficam em branco; clique nos dias de folga para marcá-los com X.' },
+              ] as Array<{ value: ScheduleViewMode; title: string; description: string }>).map((option) => {
+                const selected = getScheduleViewMode(formData) === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                      selected ? 'border-sky-300 bg-sky-50 ring-1 ring-sky-200' : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="scheduleViewMode"
+                      value={option.value}
+                      checked={selected}
+                      onChange={() => setFormData({
+                        ...formData,
+                        scheduleViewMode: option.value,
+                        simplifiedScheduleMode: option.value === 'simplified',
+                      })}
+                      className="sr-only"
+                    />
+                    <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300 text-transparent'}`}>
+                      <Check className="h-3 w-3" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        {option.value === 'days_off' && <CalendarDays className="h-3.5 w-3.5 text-sky-700" />}
+                        {option.title}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-600">{option.description}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Gerente responsável</label>

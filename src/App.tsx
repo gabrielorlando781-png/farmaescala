@@ -32,6 +32,7 @@ import { ReportsView } from './components/ReportsView';
 import { AutoScheduleModal } from './components/AutoScheduleModal';
 import { PharmacySettingsModal } from './components/PharmacySettingsModal';
 import { AiManagerChat } from './components/AiManagerChat';
+import { getScheduleViewMode, isCompactScheduleMode } from './utils/scheduleViewMode';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
 
@@ -51,6 +52,17 @@ const getOccurrenceType = (shift?: ShiftType): EmployeeOccurrenceType | undefine
   if (shift.id === 'shift_atestado' || shift.code === 'ATEST') return 'atestado';
   if (shift.id === 'shift_falta' || shift.code === 'FALTA') return 'falta';
   return undefined;
+};
+
+const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings => {
+  const scheduleViewMode = savedSettings.scheduleViewMode
+    ?? (savedSettings.simplifiedScheduleMode ? 'simplified' : 'complete');
+  return {
+    ...INITIAL_PHARMACY_SETTINGS,
+    ...savedSettings,
+    scheduleViewMode,
+    simplifiedScheduleMode: scheduleViewMode === 'simplified',
+  };
 };
 
 export default function App() {
@@ -74,7 +86,7 @@ export default function App() {
 
   const [settings, setSettings] = useState<PharmacySettings>(() => {
     const saved = localStorage.getItem('farma_settings_clean');
-    return saved ? JSON.parse(saved) : INITIAL_PHARMACY_SETTINGS;
+    return saved ? normalizeSettings(JSON.parse(saved)) : INITIAL_PHARMACY_SETTINGS;
   });
 
   const [schedulesMap, setSchedulesMap] = useState<Record<string, MonthSchedule>>(() => {
@@ -898,7 +910,7 @@ export default function App() {
         onSelectTab={setActiveTab}
         employeesCount={employees.filter((e) => e.active).length}
         shiftsCount={shifts.length}
-        simplifiedMode={Boolean(settings.simplifiedScheduleMode)}
+        simplifiedMode={isCompactScheduleMode(settings)}
       />
 
       {/* Main Content Area */}
@@ -1007,7 +1019,8 @@ export default function App() {
             employee.role === 'farmaceutico'
         ).length}
         activeEmployeesCount={employees.filter((employee) => employee.active).length}
-        simplifiedMode={Boolean(settings.simplifiedScheduleMode)}
+        simplifiedMode={getScheduleViewMode(settings) !== 'complete'}
+        daysOffOnlyMode={getScheduleViewMode(settings) === 'days_off'}
         onRunAutoSchedule={handleRunAutoSchedule}
       />
 
@@ -1016,8 +1029,9 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSaveSettings={(nextSettings) => {
-          setSettings(nextSettings);
-          if (nextSettings.simplifiedScheduleMode && activeTab === 'turnos') setActiveTab('escala');
+          const normalizedSettings = normalizeSettings(nextSettings);
+          setSettings(normalizedSettings);
+          if (isCompactScheduleMode(normalizedSettings) && activeTab === 'turnos') setActiveTab('escala');
         }}
       />
 

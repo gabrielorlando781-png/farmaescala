@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronLeft, ChevronRight, Clock3, PencilLine, Users } from 'lucide-react';
 import { Employee, MonthSchedule, PharmacySettings, ShiftType } from '../types';
 import { getShortDayName } from '../utils/scheduleRules';
+import { getScheduleViewMode } from '../utils/scheduleViewMode';
 
 interface SchedulePeriodViewsProps {
   mode: 'daily' | 'weekly';
@@ -42,6 +43,7 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
   const selectedDate = new Date(currentYear, currentMonth - 1, selectedDay);
   const shiftMap = new Map<string, ShiftType>(shifts.map((shift) => [shift.id, shift]));
   const dayOffShift = shifts.find((shift) => shift.isDayOff && !shift.isSpecialLeave);
+  const isSimplifiedMode = getScheduleViewMode(settings) === 'simplified';
   const getShiftBadgeClass = (shift: ShiftType) => {
     if (shift.id === 'shift_ferias' || shift.code === 'FÉR') return 'border-amber-400 bg-amber-100 text-amber-950 ring-1 ring-amber-300';
     if (shift.id === 'shift_atestado' || shift.id === 'shift_falta' || shift.code === 'ATEST' || shift.code === 'FALTA') return 'border-rose-400 bg-rose-100 text-rose-950 ring-1 ring-rose-300';
@@ -173,8 +175,8 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
                             } ${isManualMode && isCurrentMonth ? 'cursor-pointer hover:brightness-95 hover:ring-2 hover:ring-sky-300' : 'cursor-default'}`}
                             title={isManualMode && isCurrentMonth ? 'Editar escala deste dia' : undefined}
                           >
-                            <div>{settings.simplifiedScheduleMode ? (shift.isDayOff ? 'FOLGA' : 'TRABALHO') : shift.code}</div>
-                            {!settings.simplifiedScheduleMode && !shift.isDayOff && <div className="mt-0.5 font-normal opacity-70">{shift.startTime}–{shift.endTime}</div>}
+                            <div>{isSimplifiedMode ? (shift.isDayOff ? 'FOLGA' : 'TRABALHO') : shift.code}</div>
+                            {!isSimplifiedMode && !shift.isDayOff && <div className="mt-0.5 font-normal opacity-70">{shift.startTime}–{shift.endTime}</div>}
                           </button>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
@@ -204,7 +206,7 @@ export const SchedulePeriodViews: React.FC<SchedulePeriodViewsProps> = ({
                         <div className="min-w-0">
                           <div className="truncate font-bold text-slate-800">{employee.name}</div>
                           <div className="truncate text-[10px] font-normal text-slate-500">{employee.roleTitle}</div>
-                          {absenceShift?.isSpecialLeave && <div className={`mt-1 inline-flex rounded border px-1 py-0.5 text-[9px] font-bold ${getShiftBadgeClass(absenceShift)}`}>{settings.simplifiedScheduleMode ? (absenceShift.id === 'shift_ferias' ? 'FÉRIAS' : absenceShift.id === 'shift_falta' ? 'FALTA' : 'ATESTADO') : absenceShift.code}</div>}
+                          {absenceShift?.isSpecialLeave && <div className={`mt-1 inline-flex rounded border px-1 py-0.5 text-[9px] font-bold ${getShiftBadgeClass(absenceShift)}`}>{isSimplifiedMode ? (absenceShift.id === 'shift_ferias' ? 'FÉRIAS' : absenceShift.id === 'shift_falta' ? 'FALTA' : 'ATESTADO') : absenceShift.code}</div>}
                         </div>
                         {isManualMode && (
                           <button
