@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Employee, 
   ShiftType, 
@@ -16,6 +16,11 @@ import {
 import { getShortDayName } from '../utils/scheduleRules';
 import { CellShiftPopover } from './CellShiftPopover';
 import { SchedulePeriodViews } from './SchedulePeriodViews';
+import {
+  getDefaultWorkingShiftId,
+  getEffectiveAssignmentShiftId,
+  getScheduleViewMode,
+} from '../utils/scheduleViewMode';
 
 interface ScheduleGridProps {
   currentYear: number;
@@ -46,6 +51,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   const [roleFilter, setRoleFilter] = useState<string>('todos');
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [isManualMode, setIsManualMode] = useState(false);
+  const scheduleViewMode = getScheduleViewMode(settings);
+  const isDaysOffMode = scheduleViewMode === 'days_off';
   const today = new Date();
   const initialDay = today.getFullYear() === currentYear && today.getMonth() + 1 === currentMonth
     ? today.getDate()
@@ -64,9 +71,16 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   const safeSelectedDay = Math.min(daysInMonth, Math.max(1, selectedDay));
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const shiftMap = new Map<string, ShiftType>(shifts.map((s) => [s.id, s]));
-  const editableShifts = settings.simplifiedScheduleMode
+  const editableShifts = scheduleViewMode === 'simplified'
     ? shifts.filter((shift) => shift.isDayOff || (!shift.isDayOff && shift.id === shifts.find((candidate) => !candidate.isDayOff)?.id))
     : shifts;
+
+  useEffect(() => {
+    if (isDaysOffMode) {
+      setViewMode('monthly');
+      setIsManualMode(false);
+    }
+  }, [isDaysOffMode]);
 
   // Filter employees
   const filteredEmployees = employees.filter((emp) => {
@@ -93,8 +107,13 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     ? employees.find((e) => e.id === activePopover.employeeId)
     : null;
 
-  const currentShiftId = activePopover
-    ? schedule.assignments[`${activePopover.employeeId}_${activePopover.dateStr}`] || 'shift_folga'
+  const currentShiftId = activePopover && activeEmployee
+    ? getEffectiveAssignmentShiftId(
+        schedule.assignments[`${activePopover.employeeId}_${activePopover.dateStr}`],
+        activeEmployee,
+        shifts,
+        settings
+      )
     : 'shift_folga';
 
   const currentNote = activePopover
@@ -109,6 +128,13 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       top: rect.bottom + 4,
       left: rect.left,
     });
+  };
+
+  const handleDaysOffToggle = (employee: Employee, dateStr: string, shift: ShiftType) => {
+    if (shift.isSpecialLeave) return;
+    const workingShiftId = getDefaultWorkingShiftId(employee, shifts);
+    if (shift.isDayOff && !workingShiftId) return;
+    onUpdateAssignment(employee.id, dateStr, shift.isDayOff ? workingShiftId! : 'shift_folga', '');
   };
 
   const getShiftBadgeClass = (shift: ShiftType) => {
@@ -172,7 +198,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
+          {!isDaysOffMode && <button
             type="button"
             onClick={() => setIsManualMode((enabled) => !enabled)}
             className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
@@ -184,9 +210,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
           >
             <PencilLine className="h-3.5 w-3.5" />
             {isManualMode ? 'Edição manual ativa' : 'Gerenciar manualmente'}
-          </button>
+          </button>}
 
-          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs">
+          {!isDaysOffMode && <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs">
             {([
               { id: 'daily', label: 'Diário', icon: Clock3 },
               { id: 'weekly', label: 'Semanal', icon: CalendarRange },
@@ -204,10 +230,17 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 {label}
               </button>
             ))}
-          </div>
+          </div>}
 
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
+          {isDaysOffMode ? (
+            <>
+              <span className="rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-800">Clique para marcar</span>
+              <span className="text-[11px] text-slate-500"><strong className="mr-1 text-base leading-none text-slate-800">X</strong> Folga</span>
+              <span className="text-[11px] text-slate-400">Vazio = trabalho</span>
+            </>
+          ) : <>
           <span className="text-[11px] text-slate-400 font-medium">Turnos:</span>
           {shifts.slice(0, 5).map((s) => (
             <span
@@ -221,6 +254,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
           <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
             FOLGA
           </span>
+          </>}
           </div>
         </div>
       </div>
@@ -299,27 +333,44 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                       const dayDate = new Date(currentYear, currentMonth - 1, day);
                       const isSunday = dayDate.getDay() === 0;
                       const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      const shiftId = schedule.assignments[`${emp.id}_${dateStr}`] || 'shift_folga';
+                      const shiftId = getEffectiveAssignmentShiftId(
+                        schedule.assignments[`${emp.id}_${dateStr}`],
+                        emp,
+                        shifts,
+                        settings
+                      );
                       const shift = shiftMap.get(shiftId) || shiftMap.get('shift_folga')!;
                       const hasNote = Boolean(schedule.customNotes?.[`${emp.id}_${dateStr}`]);
+                      const canToggleDayOff = isDaysOffMode && !shift.isSpecialLeave;
 
                       return (
                         <td
                           key={day}
-                          onClick={(event) => isManualMode && handleCellClick(emp.id, dateStr, event)}
+                          onClick={(event) => {
+                            if (canToggleDayOff) handleDaysOffToggle(emp, dateStr, shift);
+                            else if (isManualMode) handleCellClick(emp.id, dateStr, event);
+                          }}
                           className={`p-1 text-center border-r border-slate-100 transition-all ${
-                            isManualMode ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+                            canToggleDayOff || isManualMode ? 'cursor-pointer hover:bg-sky-50' : 'cursor-default'
                           } ${
                             isSunday ? 'bg-sky-50/30' : ''
                           }`}
                         >
                           <div
                             className={`w-full py-1 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 select-none relative ${
-                              getShiftBadgeClass(shift)
+                              isDaysOffMode
+                                ? shift.isSpecialLeave
+                                  ? getShiftBadgeClass(shift)
+                                  : shift.isDayOff
+                                    ? 'border-slate-300 bg-slate-100 text-base leading-[14px] text-slate-800'
+                                    : 'border-transparent bg-transparent text-transparent'
+                                : getShiftBadgeClass(shift)
                             }`}
-                            title={`${settings.simplifiedScheduleMode ? (shift.isDayOff ? 'Folga' : 'Trabalho') : shift.name}${hasNote ? ' (Com observação)' : ''}`}
+                            title={`${isDaysOffMode ? (shift.isSpecialLeave ? shift.name : shift.isDayOff ? 'Folga — clique para desmarcar' : 'Trabalho — clique para marcar folga') : scheduleViewMode === 'simplified' ? (shift.isDayOff ? 'Folga' : 'Trabalho') : shift.name}${hasNote ? ' (Com observação)' : ''}`}
                           >
-                            {settings.simplifiedScheduleMode ? (shift.isDayOff ? 'FOLGA' : 'TRAB.') : shift.code}
+                            {isDaysOffMode
+                              ? shift.isSpecialLeave ? shift.code : shift.isDayOff ? 'X' : '\u00A0'
+                              : scheduleViewMode === 'simplified' ? (shift.isDayOff ? 'FOLGA' : 'TRAB.') : shift.code}
                             {hasNote && (
                               <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-amber-500" />
                             )}
@@ -341,7 +392,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       </div>
       )}
 
-      {viewMode !== 'monthly' && (
+      {!isDaysOffMode && viewMode !== 'monthly' && (
         <SchedulePeriodViews
           mode={viewMode}
           currentYear={currentYear}
@@ -358,7 +409,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       )}
 
       {/* Interactive Popover for editing cell */}
-      {activePopover && activeEmployee && (
+      {!isDaysOffMode && activePopover && activeEmployee && (
         <CellShiftPopover
           isOpen={Boolean(activePopover)}
           onClose={() => setActivePopover(null)}

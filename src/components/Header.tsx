@@ -5,7 +5,7 @@ import {
   Sparkles, 
   Printer, 
   CheckCircle2, 
-  Building2,
+  Settings,
   CalendarDays,
   Trash2
 } from 'lucide-react';
@@ -148,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 cursor-pointer"
             title="Configurações da Farmácia"
           >
-            <Building2 className="w-4 h-4" />
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>

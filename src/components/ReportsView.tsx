@@ -20,6 +20,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { getMonthName, getShortDayName } from '../utils/scheduleRules';
+import { getEffectiveAssignmentShiftId, getScheduleViewMode } from '../utils/scheduleViewMode';
 
 interface ReportsViewProps {
   currentYear: number;
@@ -48,6 +49,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const shiftMap = new Map<string, ShiftType>(shifts.map((s) => [s.id, s]));
+  const scheduleViewMode = getScheduleViewMode(settings);
+  const getEmployeeShift = (employee: Employee, dateStr: string) => {
+    const shiftId = getEffectiveAssignmentShiftId(
+      schedule.assignments[`${employee.id}_${dateStr}`],
+      employee,
+      shifts,
+      settings
+    );
+    return shiftMap.get(shiftId) || shiftMap.get('shift_folga')!;
+  };
+  const getDisplayedShiftCode = (shift: ShiftType) => {
+    if (scheduleViewMode !== 'days_off') return shift.code;
+    if (shift.isSpecialLeave) return shift.code;
+    return shift.isDayOff ? 'X' : '';
+  };
 
   const handlePrint = () => {
     const previousTitle = document.title;
@@ -86,9 +102,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const shiftId = schedule.assignments[`${emp.id}_${dateStr}`] || 'shift_folga';
-        const shift = shiftMap.get(shiftId);
-        if (shift && !shift.isDayOff) {
+        const shift = getEmployeeShift(emp, dateStr);
+        if (!shift.isDayOff) {
           workedDays.push(`${day}(${shift.code})`);
         } else {
           offDays.push(`${day}`);
@@ -136,9 +151,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     activeEmployees.forEach((emp) => {
       const daysData = daysArray.map((day) => {
         const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const shiftId = schedule.assignments[`${emp.id}_${dateStr}`] || 'shift_folga';
-        const shift = shiftMap.get(shiftId);
-        return shift ? shift.code : 'F';
+        return getDisplayedShiftCode(getEmployeeShift(emp, dateStr));
       });
 
       rows.push([
@@ -177,14 +190,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       footer: 0.1,
     };
 
-    const legendRows: Array<Array<string>> = [
-      ['Código', 'Turno', 'Horário'],
-      ...shifts.map((shift) => [
-        shift.code,
-        shift.name,
-        shift.isDayOff ? 'Folga' : `${shift.startTime} às ${shift.endTime}`,
-      ]),
-    ];
+    const legendRows: Array<Array<string>> = scheduleViewMode === 'days_off'
+      ? [
+          ['Código', 'Significado', 'Observação'],
+          ['X', 'Folga', 'Célula vazia = dia trabalhado'],
+          ...shifts.filter((shift) => shift.isSpecialLeave).map((shift) => [shift.code, shift.name, 'Ausência']),
+        ]
+      : [
+          ['Código', 'Turno', 'Horário'],
+          ...shifts.map((shift) => [
+            shift.code,
+            shift.name,
+            shift.isDayOff ? 'Folga' : `${shift.startTime} às ${shift.endTime}`,
+          ]),
+        ];
     const legendSheet = XLSX.utils.aoa_to_sheet(legendRows);
     legendSheet['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 22 }];
     legendSheet['!autofilter'] = { ref: `A1:C${legendRows.length}` };
@@ -330,8 +349,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </td>
                     {daysArray.map((day) => {
                       const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      const shiftId = schedule.assignments[`${emp.id}_${dateStr}`] || 'shift_folga';
-                      const shift = shiftMap.get(shiftId) || shiftMap.get('shift_folga')!;
+                      const shift = getEmployeeShift(emp, dateStr);
 
                       return (
                         <td
@@ -344,7 +362,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                                 : shift.isDayOff ? 'bg-slate-100 text-slate-500' : 'text-slate-900'
                           }`}
                         >
-                          {shift.code}
+                          {getDisplayedShiftCode(shift) || '\u00A0'}
                         </td>
                       );
                     })}
@@ -360,8 +378,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         {/* Legend of Shifts */}
         <div className="official-board-legend bg-slate-50 p-3 rounded-xl border border-slate-200 text-[11px] mb-6">
-          <span className="font-bold text-slate-700 mr-2">Legenda dos Turnos:</span>
-          {shifts.map((s) => (
+          <span className="font-bold text-slate-700 mr-2">{scheduleViewMode === 'days_off' ? 'Legenda:' : 'Legenda dos Turnos:'}</span>
+          {scheduleViewMode === 'days_off' && <span className="mr-3 text-slate-600"><strong className="text-slate-900">X</strong> = Folga; vazio = dia trabalhado</span>}
+          {shifts.filter((shift) => scheduleViewMode !== 'days_off' || shift.isSpecialLeave).map((s) => (
             <span key={s.id} className="inline-block mr-3 text-slate-600">
               <strong className="text-slate-900">{s.code}</strong> = {s.name}{' '}
               {!s.isDayOff ? `(${s.startTime} às ${s.endTime})` : ''}

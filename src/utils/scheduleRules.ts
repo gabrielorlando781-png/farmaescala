@@ -1,4 +1,5 @@
 import { Employee, ShiftType, MonthSchedule, ScheduleAlert, DayCoverageSummary, PharmacySettings, AutoScheduleOptions } from '../types';
+import { getEffectiveAssignmentShiftId } from './scheduleViewMode';
 
 /**
  * Validates a month schedule against Brazilian Labor Laws (CLT) and Federal Pharmacy Council (CRF) rules.
@@ -58,7 +59,7 @@ export function validateSchedule(
       if (!emp.active) return;
 
       const key = `${emp.id}_${dateStr}`;
-      const shiftId = schedule.assignments[key];
+      const shiftId = getEffectiveAssignmentShiftId(schedule.assignments[key], emp, shifts, settings);
       const shift = shiftMap.get(shiftId) || shiftMap.get('shift_folga')!;
 
       // Interjornada check (11h rest between shifts)
