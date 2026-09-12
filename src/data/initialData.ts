@@ -74,7 +74,6 @@ export function generateInitialSchedule(year: number, month: number): MonthSched
     id: `schedule_${year}_${month}`,
     year,
     month,
-    status: 'rascunho',
     assignments: {},
     customNotes: {},
   };
