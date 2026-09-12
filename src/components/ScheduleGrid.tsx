@@ -262,11 +262,16 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       {/* Main Schedule Grid Table */}
       {viewMode === 'monthly' && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs">
+        <div className="w-full">
+          <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs">
+            <colgroup>
+              <col style={{ width: '17%' }} />
+              {daysArray.map((day) => <col key={day} />)}
+              <col style={{ width: '6%' }} />
+            </colgroup>
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="p-3 text-left font-bold text-slate-700 min-w-[180px] sticky left-0 bg-slate-50 z-10 border-r border-slate-200">
+                <th className="p-2 text-left font-bold text-slate-700 bg-slate-50 border-r border-slate-200">
                   Colaborador
                 </th>
                 {daysArray.map((day) => {
@@ -280,16 +285,17 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                   return (
                     <th
                       key={day}
-                      className={`p-1.5 text-center font-bold min-w-[36px] border-r border-slate-200 ${
+                      className={`p-0.5 text-center font-bold border-r border-slate-200 ${
                         isSunday ? 'bg-sky-50/80 text-sky-900' : isSaturday ? 'bg-slate-50/80 text-slate-700' : 'text-slate-700'
                       }`}
                     >
-                      <div className="text-[10px] font-medium text-slate-400">
-                        {getShortDayName(dayDate.getDay())}
+                      <div className="text-[8px] font-medium leading-tight text-slate-400" title={getShortDayName(dayDate.getDay())}>
+                        <span className="xl:hidden">{getShortDayName(dayDate.getDay()).slice(0, 1)}</span>
+                        <span className="hidden xl:inline">{getShortDayName(dayDate.getDay())}</span>
                       </div>
-                      <div className="text-xs font-bold">{day}</div>
+                      <div className="text-[10px] font-bold leading-tight sm:text-xs">{day}</div>
                       {/* Discrete RT indicator */}
-                      <div className="mt-0.5 flex justify-center">
+                      <div className="mt-px flex justify-center">
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
                             hasRT ? 'bg-sky-500' : 'bg-rose-400'
@@ -300,8 +306,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     </th>
                   );
                 })}
-                <th className="p-2 text-center font-bold text-slate-700 min-w-[70px] bg-slate-50">
-                  Horas
+                <th className="p-1 text-center font-bold text-slate-700 bg-slate-50" title="Horas trabalhadas">
+                  <span className="hidden sm:inline">Horas</span><span className="sm:hidden">h</span>
                 </th>
               </tr>
             </thead>
@@ -311,17 +317,17 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 return (
                   <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
                     {/* Employee info cell */}
-                    <td className="p-3 sticky left-0 bg-white z-10 border-r border-slate-200">
-                      <div className="flex items-center gap-2">
+                    <td className="p-2 bg-white border-r border-slate-200">
+                      <div className="flex items-center gap-1.5">
                         <div
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          className="h-2 w-2 rounded-full shrink-0"
                           style={{ backgroundColor: emp.color || '#0284c7' }}
                         />
                         <div className="overflow-hidden">
-                          <div className="font-bold text-slate-800 text-xs truncate">
+                          <div className="truncate text-[10px] font-bold text-slate-800 sm:text-xs">
                             {emp.name}
                           </div>
-                          <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                          <div className="hidden truncate text-[9px] text-slate-500 sm:flex sm:items-center sm:gap-1 sm:text-[10px]">
                             <span>{emp.roleTitle}</span>
                           </div>
                         </div>
@@ -350,14 +356,14 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                             if (canToggleDayOff) handleDaysOffToggle(emp, dateStr, shift);
                             else if (isManualMode) handleCellClick(emp.id, dateStr, event);
                           }}
-                          className={`p-1 text-center border-r border-slate-100 transition-all ${
+                          className={`p-0.5 text-center border-r border-slate-100 transition-all ${
                             canToggleDayOff || isManualMode ? 'cursor-pointer hover:bg-sky-50' : 'cursor-default'
                           } ${
                             isSunday ? 'bg-sky-50/30' : ''
                           }`}
                         >
                           <div
-                            className={`w-full py-1 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 select-none relative ${
+                            className={`relative w-full select-none rounded border py-0.5 text-[8px] font-bold transition-transform hover:scale-105 sm:text-[10px] ${
                               isDaysOffMode
                                 ? shift.isSpecialLeave
                                   ? getShiftBadgeClass(shift)
@@ -380,8 +386,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     })}
 
                     {/* Total Hours */}
-                    <td className="p-2 text-center border-l border-slate-200 font-bold text-slate-800 text-xs">
-                      {hours.toFixed(0)}h
+                    <td className="p-0.5 text-center border-l border-slate-200 font-bold text-slate-800 text-[9px] sm:text-[10px]" title={`${hours.toFixed(0)} horas trabalhadas`}>
+                      {hours.toFixed(0)}<span className="hidden sm:inline">h</span>
                     </td>
                   </tr>
                 );
