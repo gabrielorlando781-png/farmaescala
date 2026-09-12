@@ -81,9 +81,6 @@ export interface MonthSchedule {
   id: string;
   year: number;
   month: number; // 1-12
-  status: 'rascunho' | 'em_revisao' | 'publicado';
-  publishedAt?: string;
-  publishedBy?: string;
   assignments: Record<string, string>; // Key: `${employeeId}_${date}`, Value: shiftId
   customNotes?: Record<string, string>; // Key: `${employeeId}_${date}`, Value: note
 }

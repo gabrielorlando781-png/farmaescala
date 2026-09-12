@@ -4,7 +4,6 @@ import {
   ChevronRight, 
   Sparkles, 
   Printer, 
-  CheckCircle2, 
   Settings,
   CalendarDays,
   Trash2
@@ -22,7 +21,6 @@ interface HeaderProps {
   onOpenAutoSchedule: () => void;
   onPrint: () => void;
   onOpenSettingsModal: () => void;
-  onTogglePublish: () => void;
   onDeleteSchedule: () => void;
   totalWorkingHours: number;
 }
@@ -37,7 +35,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAutoSchedule,
   onPrint,
   onOpenSettingsModal,
-  onTogglePublish,
   onDeleteSchedule,
   totalWorkingHours,
 }) => {
@@ -114,21 +111,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Printer className="w-3.5 h-3.5 text-slate-400" />
             <span className="hidden sm:inline">Imprimir</span>
-          </button>
-
-          {/* Publish status toggle */}
-          <button
-            onClick={onTogglePublish}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-              schedule.status === 'publicado'
-                ? 'bg-sky-950/80 text-sky-300 border-sky-600/50 hover:bg-sky-900/60'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-            }`}
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">
-              {schedule.status === 'publicado' ? 'Publicada' : 'Rascunho'}
-            </span>
           </button>
 
           <button

@@ -336,9 +336,6 @@ export default function App() {
       ...currentSchedule,
       assignments: { ...currentSchedule.assignments },
       customNotes: { ...(currentSchedule.customNotes ?? {}) },
-      status: 'rascunho',
-      publishedAt: undefined,
-      publishedBy: undefined,
     };
 
     const parsePatch = (patchJson?: string): Record<string, unknown> => {
@@ -758,33 +755,6 @@ export default function App() {
     return appliedCount;
   };
 
-  // Toggle publish status
-  const handleTogglePublish = () => {
-    const newStatus = currentSchedule.status === 'publicado' ? 'rascunho' : 'publicado';
-    const updated: MonthSchedule = {
-      ...currentSchedule,
-      status: newStatus,
-      publishedAt: newStatus === 'publicado' ? new Date().toISOString() : undefined,
-      publishedBy: newStatus === 'publicado'
-        ? (settings.technicalResponsible ? settings.technicalResponsible : 'Gestor')
-        : undefined,
-    };
-
-    setSchedulesMap((prev) => ({
-      ...prev,
-      [scheduleId]: updated,
-    }));
-
-    if (newStatus === 'publicado') {
-      confetti({
-        particleCount: 80,
-        spread: 80,
-        origin: { y: 0.5 },
-        colors: ['#059669', '#34d399', '#0d9488'],
-      });
-    }
-  };
-
   const handleDeleteSchedule = () => {
     const confirmed = window.confirm(
       `Deseja excluir a escala de ${currentMonth}/${currentYear}? Funcionários, turnos e outros meses serão preservados.`
@@ -899,7 +869,6 @@ export default function App() {
         onOpenAutoSchedule={() => setIsAutoScheduleOpen(true)}
         onPrint={() => setActiveTab('relatorios')}
         onOpenSettingsModal={() => setIsSettingsOpen(true)}
-        onTogglePublish={handleTogglePublish}
         onDeleteSchedule={handleDeleteSchedule}
         totalWorkingHours={totalWorkingHours}
       />

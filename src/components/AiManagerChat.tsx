@@ -69,7 +69,7 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
     period: { year: currentYear, month: currentMonth }, pharmacy: settings,
     employees: employees.map(({ cpf: _cpf, phone: _phone, email: _email, ...employee }) => employee),
     shifts: shifts.map(({ color: _color, bgColor: _bg, textColor: _text, borderColor: _border, ...shift }) => shift),
-    schedule: { status: schedule.status, assignments: schedule.assignments, notes: schedule.customNotes ?? {} },
+    schedule: { assignments: schedule.assignments, notes: schedule.customNotes ?? {} },
     importedSpreadsheet: activeConversation.importedSpreadsheet && {
       fileName: activeConversation.importedSpreadsheet.fileName,
       importedAt: activeConversation.importedSpreadsheet.importedAt,

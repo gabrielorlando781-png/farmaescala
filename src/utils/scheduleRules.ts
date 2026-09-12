@@ -442,8 +442,6 @@ export function generateSmartSchedule(
     id: `schedule_${year}_${month}`,
     year,
     month,
-    status: 'rascunho',
-    publishedAt: undefined,
     assignments,
     customNotes: {},
   };
