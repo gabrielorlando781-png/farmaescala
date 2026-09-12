@@ -302,9 +302,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <span className="font-bold text-emerald-950">Gerente responsável:</span>{' '}
               {settings.technicalResponsible}
             </div>
-            <div>
-              <span className="font-bold text-emerald-950">Status:</span> Publicada e Aprovada
-            </div>
           </div>
         </div>
 
