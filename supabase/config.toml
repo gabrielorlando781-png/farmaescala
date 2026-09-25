@@ -9,3 +9,6 @@ verify_jwt = true
 
 [functions.complete-invitation]
 verify_jwt = true
+
+[functions.account-status]
+verify_jwt = true

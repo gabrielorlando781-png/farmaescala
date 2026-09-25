@@ -4,7 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 type CreateInvitationPayload = {
   action: 'create_network_invitation';
   organization: { name: string; slug: string; ownerName: string; ownerEmail: string };
-};
+} | { action: 'set_organization_active'; organizationId: string; active: boolean };
 
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
@@ -27,6 +27,14 @@ Deno.serve(async (request) => {
     if (profileError || !profile?.is_platform_admin) return response({ error: 'Apenas o administrador da plataforma pode criar redes.' }, 403);
 
     const payload = await request.json() as CreateInvitationPayload;
+    const adminClient = createClient(url, serviceRoleKey);
+    if (payload.action === 'set_organization_active') {
+      if (!payload.organizationId || typeof payload.active !== 'boolean') return response({ error: 'Dados da rede inválidos.' }, 400);
+      const { data: organization, error: updateError } = await adminClient.from('organizations').update({ active: payload.active }).eq('id', payload.organizationId).select('id, name, slug, active').single();
+      if (updateError || !organization) return response({ error: 'Não foi possível alterar o status da rede.' }, 400);
+      await adminClient.from('audit_logs').insert({ organization_id: organization.id, actor_id: user.id, action: organization.active ? 'organization_activated' : 'organization_suspended', entity_type: 'organization', entity_id: organization.id, after_data: { active: organization.active } });
+      return response({ organization });
+    }
     if (payload.action !== 'create_network_invitation') return response({ error: 'Ação inválida.' }, 400);
     const { name, slug, ownerName, ownerEmail } = payload.organization ?? {};
     const normalizedSlug = String(slug ?? '').trim().toLowerCase();
@@ -35,7 +43,6 @@ Deno.serve(async (request) => {
       return response({ error: 'Confira o nome, identificador e e-mail do responsável.' }, 400);
     }
 
-    const adminClient = createClient(url, serviceRoleKey);
     const { data: existingOrganization } = await adminClient.from('organizations').select('id').eq('slug', normalizedSlug).maybeSingle();
     if (existingOrganization) return response({ error: 'Esse identificador de rede já está em uso.' }, 409);
 

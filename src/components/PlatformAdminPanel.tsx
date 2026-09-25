@@ -1,5 +1,5 @@
 import React, { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Building2, Mail, Plus, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Organization = { id: string; name: string; slug: string; active: boolean; created_at: string };
@@ -13,12 +13,29 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [sending, setSending] = useState(false);
+  const [changingOrganizationId, setChangingOrganizationId] = useState<string | null>(null);
 
   const loadOrganizations = async () => {
     if (!supabase) return;
     const { data, error: listError } = await supabase.from('organizations').select('id, name, slug, active, created_at').order('created_at', { ascending: false });
     if (listError) setError('Não foi possível carregar as redes.');
     else setOrganizations((data ?? []) as Organization[]);
+  };
+
+  const changeOrganizationStatus = async (organization: Organization) => {
+    if (!supabase) return;
+    const action = organization.active ? 'suspender' : 'reativar';
+    if (!window.confirm(`Deseja ${action} a rede ${organization.name}? ${organization.active ? 'Os usuários não conseguirão acessar a plataforma até a reativação.' : 'Os usuários voltarão a acessar a plataforma.'}`)) return;
+    setError(''); setSuccess(''); setChangingOrganizationId(organization.id);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('platform-admin', { body: { action: 'set_organization_active', organizationId: organization.id, active: !organization.active } });
+      if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(data.error);
+      setSuccess(`Rede ${organization.name} ${organization.active ? 'suspensa' : 'reativada'} com sucesso.`);
+      await loadOrganizations();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Não foi possível alterar o status da rede.');
+    } finally { setChangingOrganizationId(null); }
   };
 
   useEffect(() => { void loadOrganizations(); }, []);
@@ -70,7 +87,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
           </form>
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes cadastradas</h2></div><div className="mt-5 space-y-3">{organizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede cadastrada ainda.</p> : organizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug} · {organization.active ? 'Ativa' : 'Inativa'}</p></div>)}</div></section>
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes cadastradas</h2></div><div className="mt-5 space-y-3">{organizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede cadastrada ainda.</p> : organizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${organization.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{organization.active ? '● Ativa' : '● Suspensa'}</span></div><button disabled={changingOrganizationId === organization.id} onClick={() => void changeOrganizationStatus(organization)} className={`mt-4 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.active ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{organization.active ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}{changingOrganizationId === organization.id ? 'Salvando...' : organization.active ? 'Suspender acesso' : 'Reativar acesso'}</button></div>)}</div></section>
       </div>
     </div>
   </main>;

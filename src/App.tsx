@@ -39,7 +39,7 @@ import { PlatformAdminPanel } from './components/PlatformAdminPanel';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
-type Organization = { id: string; name: string; slug: string };
+type Organization = { id: string; name: string; slug: string; active: boolean };
 
 const normalizeEmployee = ({ crf: _crf, ...employee }: PersistedEmployee): Employee => {
   const isLegacyPharmacist =
@@ -1041,22 +1041,16 @@ export default function App() {
   const loadOrganization = async (userId: string) => {
     if (!supabase) return;
     setLoadingOrganization(true);
-    const [{ data, error }, { data: profile, error: profileError }] = await Promise.all([
-      supabase
-      .from('organization_memberships')
-      .select('organizations (id, name, slug)')
-      .eq('user_id', userId)
-      .eq('active', true)
-      .limit(1)
-      .maybeSingle(),
+    const [{ data: status, error: statusError }, { data: profile, error: profileError }] = await Promise.all([
+      supabase.functions.invoke('account-status'),
       supabase.from('profiles').select('is_platform_admin').eq('id', userId).maybeSingle(),
     ]);
 
-    if (error) {
-      console.error('Organization lookup error:', error);
+    if (statusError || status?.error) {
+      console.error('Organization lookup error:', statusError ?? status.error);
       setOrganization(null);
     } else {
-      setOrganization((data?.organizations as unknown as Organization | null) ?? null);
+      setOrganization((status?.organization as Organization | null) ?? null);
     }
     if (profileError) console.error('Profile lookup error:', profileError);
     setIsPlatformAdmin(Boolean(profile?.is_platform_admin));
@@ -1109,6 +1103,7 @@ export default function App() {
   if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} onPasswordSet={() => setInvitationCompleted(true)} />;
   if (loadingOrganization) return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Preparando sua rede...</main>;
   if (platformAdminOpen && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
+  if (organization && !organization.active && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso temporariamente suspenso</h1><p className="mt-3 text-sm leading-6 text-slate-600">Esta rede está suspensa. Entre em contato com o administrador responsável para regularizar o acesso.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
   if (!organization && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso pendente de convite</h1><p className="mt-3 text-sm leading-6 text-slate-600">Sua conta foi autenticada, mas ainda não está vinculada a uma rede. Peça ao administrador do FarmaEscala para enviar o convite correto.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
   if (!organization) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
   return <Dashboard user={session.user} onSignOut={handleSignOut} isPlatformAdmin={isPlatformAdmin} onOpenPlatformAdmin={() => setPlatformAdminOpen(true)} />;
