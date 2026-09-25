@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
 import confetti from 'canvas-confetti';
 import { 
   Employee, 
@@ -33,6 +34,8 @@ import { AutoScheduleModal } from './components/AutoScheduleModal';
 import { PharmacySettingsModal } from './components/PharmacySettingsModal';
 import { AiManagerChat } from './components/AiManagerChat';
 import { getScheduleViewMode, isCompactScheduleMode } from './utils/scheduleViewMode';
+import { AuthScreen } from './components/AuthScreen';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
 
@@ -65,7 +68,7 @@ const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings =>
   };
 };
 
-export default function App() {
+function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   // Current Date State
   const now = new Date();
   const [currentYear, setCurrentYear] = useState<number>(now.getFullYear());
@@ -871,6 +874,8 @@ export default function App() {
         onOpenSettingsModal={() => setIsSettingsOpen(true)}
         onDeleteSchedule={handleDeleteSchedule}
         totalWorkingHours={totalWorkingHours}
+        userEmail={user.email ?? ''}
+        onSignOut={onSignOut}
       />
 
       {/* Navigation Tabs */}
@@ -1015,4 +1020,45 @@ export default function App() {
       />
     </div>
   );
+}
+
+export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      setSession(nextSession);
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
+      if (event === 'SIGNED_OUT') setRecoveryMode(false);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase?.auth.signOut();
+  };
+
+  if (loading) {
+    return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Carregando acesso seguro...</main>;
+  }
+
+  if (!isSupabaseConfigured) {
+    return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Autenticação ainda não configurada</h1><p className="mt-3 text-sm leading-6 text-slate-600">Adicione VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente do Render para liberar o login.</p></section></main>;
+  }
+
+  if (!session || recoveryMode) return <AuthScreen recoveryMode={recoveryMode} />;
+  return <Dashboard user={session.user} onSignOut={handleSignOut} />;
 }
