@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 
 type AuthMode = 'sign_in' | 'forgot_password' | 'update_password';
 
-interface AuthScreenProps { recoveryMode?: boolean; passwordSetupMode?: boolean; }
+interface AuthScreenProps { recoveryMode?: boolean; passwordSetupMode?: boolean; onPasswordSet?: () => void; }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ recoveryMode = false, passwordSetupMode = false }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ recoveryMode = false, passwordSetupMode = false, onPasswordSet }) => {
   const isPasswordSetup = recoveryMode || passwordSetupMode;
   const [mode, setMode] = useState<AuthMode>(isPasswordSetup ? 'update_password' : 'sign_in');
   const [email, setEmail] = useState('');
@@ -44,6 +44,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ recoveryMode = false, pa
       } else {
         const { error: updateError } = await supabase.auth.updateUser({ password, data: { must_set_password: false } });
         if (updateError) throw updateError;
+        if (passwordSetupMode) {
+          const { data, error: completionError } = await supabase.functions.invoke('complete-invitation');
+          if (completionError) throw completionError;
+          if (data?.error) throw new Error(data.error);
+          onPasswordSet?.();
+        }
         setSuccess('Senha atualizada. Você já pode acessar o FarmaEscala.');
       }
     } catch (requestError) {

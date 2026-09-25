@@ -46,6 +46,10 @@ Deno.serve(async (request) => {
     if (inviteError || !invitation.user) throw new Error(inviteError?.message || 'Não foi possível criar o convite.');
 
     const invitedUser = invitation.user;
+    const { error: invitationFlagError } = await adminClient.auth.admin.updateUserById(invitedUser.id, {
+      app_metadata: { ...invitedUser.app_metadata, invitation_pending: true },
+    });
+    if (invitationFlagError) throw new Error('Não foi possível preparar o acesso inicial do responsável.');
     const { error: profileUpsertError } = await adminClient.from('profiles').upsert({ id: invitedUser.id, email, full_name: String(ownerName).trim() }, { onConflict: 'id' });
     if (profileUpsertError) throw new Error('Não foi possível preparar o perfil do responsável.');
 

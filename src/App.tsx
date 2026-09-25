@@ -1035,6 +1035,7 @@ export default function App() {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminOpen, setPlatformAdminOpen] = useState(false);
+  const [invitationCompleted, setInvitationCompleted] = useState(false);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
 
   const loadOrganization = async (userId: string) => {
@@ -1088,6 +1089,7 @@ export default function App() {
       setIsPlatformAdmin(false);
       return;
     }
+    setInvitationCompleted(false);
     void loadOrganization(session.user.id);
   }, [session?.user.id, recoveryMode]);
 
@@ -1103,8 +1105,8 @@ export default function App() {
     return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Autenticação ainda não configurada</h1><p className="mt-3 text-sm leading-6 text-slate-600">Adicione VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente do Render para liberar o login.</p></section></main>;
   }
 
-  const passwordSetupMode = Boolean(session?.user.user_metadata?.must_set_password);
-  if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} />;
+  const passwordSetupMode = Boolean(session?.user.app_metadata?.invitation_pending) && !invitationCompleted;
+  if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} onPasswordSet={() => setInvitationCompleted(true)} />;
   if (loadingOrganization) return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Preparando sua rede...</main>;
   if (platformAdminOpen && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
   if (!organization && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso pendente de convite</h1><p className="mt-3 text-sm leading-6 text-slate-600">Sua conta foi autenticada, mas ainda não está vinculada a uma rede. Peça ao administrador do FarmaEscala para enviar o convite correto.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;

@@ -6,3 +6,6 @@ verify_jwt = true
 
 [functions.platform-admin]
 verify_jwt = true
+
+[functions.complete-invitation]
+verify_jwt = true
