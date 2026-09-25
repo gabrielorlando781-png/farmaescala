@@ -2,11 +2,9 @@
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# FarmaEscala
 
 This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/776f4531-1162-408d-aa4b-ac0e4a154944
 
 ## Run Locally
 
@@ -15,6 +13,10 @@ View your app in AI Studio: https://ai.studio/apps/776f4531-1162-408d-aa4b-ac0e4
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Defina `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` em `.env.local`.
+3. Rode o app:
    `npm run dev`
+
+## Publicação
+
+O frontend é publicado gratuitamente no Firebase Hosting. A chave Gemini fica protegida nas Supabase Edge Functions. Siga [FIREBASE_DEPLOY.md](FIREBASE_DEPLOY.md).

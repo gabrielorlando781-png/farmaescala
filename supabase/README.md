@@ -15,12 +15,25 @@ Essa etapa não cria usuários nem lojas. Ela apenas prepara o isolamento por re
 ## Segurança
 
 - Use somente `VITE_SUPABASE_URL` e a chave publishable/anon no frontend.
-- Mantenha `SUPABASE_SERVICE_ROLE_KEY` apenas no backend e nas variáveis secretas do Render.
+- A chave `GEMINI_API_KEY` deve ficar apenas nos **Edge Function Secrets** do Supabase.
 - Nunca desative as políticas RLS para "fazer funcionar"; ajuste a migração ou a API quando uma operação for negada.
 
 ## Login
 
-1. Em **Authentication > URL Configuration**, inclua `https://farmaescala.onrender.com` em **Site URL** e **Redirect URLs**. Durante desenvolvimento, inclua também `http://localhost:3000`.
+1. Em **Authentication > URL Configuration**, inclua a URL do Firebase (por exemplo, `https://SEU_PROJETO.web.app`) em **Site URL** e **Redirect URLs**. Durante desenvolvimento, inclua também `http://localhost:5173`.
 2. Em **Authentication > Providers > Email**, mantenha Email habilitado. Para o piloto, a confirmação de e-mail pode ficar habilitada.
 3. Em **Project Settings > API**, copie a chave **Publishable**.
-4. No Render, crie as variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` com a URL do projeto e essa chave. Como são usadas na compilação do frontend, faça um novo deploy depois de salvá-las.
+4. No computador usado para publicar o Firebase, crie um arquivo `.env.local` com `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Esses valores são públicos e necessários durante a compilação do frontend.
+
+## IA segura com Edge Functions
+
+1. Aplique também a migração `migrations/20260925010000_limit_ai_requests.sql` no **SQL Editor**. Ela limita a IA a 20 solicitações por usuário por dia.
+2. Instale/autentique o Supabase CLI e publique as funções:
+
+   ```powershell
+   npx supabase login
+   npx supabase functions deploy ai-chat --project-ref fpahpgrishxuxbopodpg
+   npx supabase functions deploy ai-transcribe --project-ref fpahpgrishxuxbopodpg
+   ```
+
+3. No painel do Supabase, abra **Edge Functions > Secrets** e crie `GEMINI_API_KEY` com a sua chave do Gemini. Nunca envie essa chave ao GitHub ou ao frontend.
