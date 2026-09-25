@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Bot, Check, FileSpreadsheet, FileUp, History, Loader2, MessageSquarePlus, Mic, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { AiAction, AiProposal, Employee, MonthSchedule, PharmacySettings, ShiftType } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string; }
 interface ImportedSpreadsheet { fileName: string; importedAt: string; sheets: { name: string; rows: string[][] }[]; }
@@ -12,17 +13,17 @@ interface SavedConversation {
 interface AiManagerChatProps {
   currentYear: number; currentMonth: number; employees: Employee[]; shifts: ShiftType[];
   settings: PharmacySettings; schedule: MonthSchedule; onConfirmActions: (actions: AiAction[]) => number;
+  userId: string;
 }
 
-const STORAGE_KEY = 'farma_ai_conversations_v1';
 const welcomeMessage: ChatMessage = { role: 'assistant', content: 'Olá! Posso consultar a equipe e a escala, analisar uma planilha existente e preparar alterações para sua confirmação.' };
 const createConversation = (): SavedConversation => {
   const now = new Date().toISOString();
   return { id: `chat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, title: 'Nova conversa', createdAt: now, updatedAt: now, messages: [welcomeMessage] };
 };
-const readConversations = (): SavedConversation[] => {
+const readConversations = (storageKey: string): SavedConversation[] => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(storageKey);
     const parsed = saved ? JSON.parse(saved) as SavedConversation[] : [];
     return Array.isArray(parsed) && parsed.length ? parsed : [createConversation()];
   } catch { return [createConversation()]; }
@@ -39,12 +40,13 @@ const parseSpreadsheet = async (file: File): Promise<ImportedSpreadsheet> => {
   return { fileName: file.name, importedAt: new Date().toISOString(), sheets };
 };
 
-export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, currentMonth, employees, shifts, settings, schedule, onConfirmActions }) => {
+export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, currentMonth, employees, shifts, settings, schedule, onConfirmActions, userId }) => {
+  const storageKey = `farma_ai_conversations_v1_${userId}`;
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingProposal, setPendingProposal] = useState<AiProposal | null>(null);
-  const [conversations, setConversations] = useState<SavedConversation[]>(readConversations);
+  const [conversations, setConversations] = useState<SavedConversation[]>(() => readConversations(storageKey));
   const [selectedConversationId, setActiveConversationId] = useState('');
   const [importError, setImportError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -53,7 +55,7 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations)); }, [conversations]);
+  useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(conversations)); }, [conversations, storageKey]);
   const activeConversation = conversations.find((conversation) => conversation.id === selectedConversationId) ?? conversations[0];
   const activeConversationId = activeConversation.id;
   const messages = activeConversation.messages;
@@ -88,9 +90,13 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: text }];
     appendMessages([{ role: 'user', content: text }]); setInput(''); setIsLoading(true); setPendingProposal(null);
     try {
-      const response = await fetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: nextMessages, context: safeContext }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Falha ao consultar a IA.');
+      if (!supabase) throw new Error('A integração com o Supabase ainda não está configurada.');
+      const { data, error: functionError } = await supabase.functions.invoke('ai-chat', { body: { messages: nextMessages, context: safeContext } });
+      if (functionError) {
+        const response = functionError.context instanceof Response ? await functionError.context.json().catch(() => null) : null;
+        throw new Error(response?.error || functionError.message || 'Falha ao consultar a IA.');
+      }
+      if (!data?.reply) throw new Error(data?.error || 'Falha ao consultar a IA.');
       setConversations((current) => current.map((conversation) => conversation.id === conversationId ? { ...conversation, messages: [...conversation.messages, { role: 'assistant', content: data.reply }], updatedAt: new Date().toISOString() } : conversation));
       if (conversationId === activeConversationId && Array.isArray(data.actions) && data.actions.length) setPendingProposal({ summary: data.proposalSummary || 'Aplicar as alterações solicitadas.', actions: data.actions });
     } catch (error) {
@@ -114,9 +120,13 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
         reader.onerror = () => reject(new Error('Não foi possível ler o áudio.'));
         reader.readAsDataURL(audio);
       });
-      const response = await fetch('/api/ai/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audioBase64, mimeType: audio.type || 'audio/webm' }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Não foi possível transcrever o áudio.');
+      if (!supabase) throw new Error('A integração com o Supabase ainda não está configurada.');
+      const { data, error: functionError } = await supabase.functions.invoke('ai-transcribe', { body: { audioBase64, mimeType: audio.type || 'audio/webm' } });
+      if (functionError) {
+        const response = functionError.context instanceof Response ? await functionError.context.json().catch(() => null) : null;
+        throw new Error(response?.error || functionError.message || 'Não foi possível transcrever o áudio.');
+      }
+      if (!data?.transcription) throw new Error(data?.error || 'Não foi possível transcrever o áudio.');
       await askAi(data.transcription);
     } catch (error) { setImportError(error instanceof Error ? error.message : 'Não foi possível transcrever o áudio.'); }
     finally { setIsTranscribing(false); }

@@ -1013,6 +1013,7 @@ function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
       />
 
       <AiManagerChat
+        userId={user.id}
         currentYear={currentYear}
         currentMonth={currentMonth}
         employees={employees}

@@ -1,0 +1,5 @@
+[functions.ai-chat]
+verify_jwt = true
+
+[functions.ai-transcribe]
+verify_jwt = true
