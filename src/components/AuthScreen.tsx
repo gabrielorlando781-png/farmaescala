@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 
 type AuthMode = 'sign_in' | 'forgot_password' | 'update_password';
 
-interface AuthScreenProps { recoveryMode?: boolean; passwordSetupMode?: boolean; onPasswordSet?: () => void; }
+interface AuthScreenProps { recoveryMode?: boolean; passwordSetupMode?: boolean; invitedEmail?: string; onPasswordSet?: () => void; }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ recoveryMode = false, passwordSetupMode = false, onPasswordSet }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ recoveryMode = false, passwordSetupMode = false, invitedEmail, onPasswordSet }) => {
   const isPasswordSetup = recoveryMode || passwordSetupMode;
   const [mode, setMode] = useState<AuthMode>(isPasswordSetup ? 'update_password' : 'sign_in');
   const [email, setEmail] = useState('');
@@ -69,6 +69,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ recoveryMode = false, pa
       </div>
       <form onSubmit={handleSubmit} className="space-y-4 p-7">
         {mode !== 'update_password' && <label className="block text-sm font-semibold text-slate-700">E-mail<span className="relative mt-1.5 block"><Mail className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="voce@farmacia.com.br" className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" /></span></label>}
+        {mode === 'update_password' && passwordSetupMode && invitedEmail && <label className="block text-sm font-semibold text-slate-700">E-mail convidado<span className="relative mt-1.5 block"><Mail className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input readOnly value={invitedEmail} className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-slate-600" /></span></label>}
         {mode !== 'forgot_password' && <label className="block text-sm font-semibold text-slate-700">{mode === 'update_password' ? 'Nova senha' : 'Senha'}<span className="relative mt-1.5 block"><LockKeyhole className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === 'update_password' ? 'new-password' : 'current-password'} className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" /></span></label>}
         {mode === 'update_password' && <label className="block text-sm font-semibold text-slate-700">Confirmar senha<input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required autoComplete="new-password" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" /></label>}
         {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}

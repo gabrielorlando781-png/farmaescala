@@ -1036,6 +1036,7 @@ export default function App() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminOpen, setPlatformAdminOpen] = useState(false);
   const [invitationCompleted, setInvitationCompleted] = useState(false);
+  const [invitationNeedsPassword, setInvitationNeedsPassword] = useState(false);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
 
   const loadOrganization = async (userId: string) => {
@@ -1087,6 +1088,21 @@ export default function App() {
     void loadOrganization(session.user.id);
   }, [session?.user.id, recoveryMode]);
 
+  useEffect(() => {
+    if (!session || !supabase) {
+      setInvitationNeedsPassword(false);
+      return;
+    }
+    let active = true;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!active || !data.user) return;
+      const metadata = data.user.app_metadata ?? {};
+      const invitedAt = (data.user as User & { invited_at?: string }).invited_at;
+      setInvitationNeedsPassword(Boolean(metadata.invitation_pending || (invitedAt && !metadata.invitation_completed)));
+    });
+    return () => { active = false; };
+  }, [session?.access_token]);
+
   const handleSignOut = async () => {
     await supabase?.auth.signOut();
   };
@@ -1099,8 +1115,8 @@ export default function App() {
     return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Autenticação ainda não configurada</h1><p className="mt-3 text-sm leading-6 text-slate-600">Adicione VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente do Render para liberar o login.</p></section></main>;
   }
 
-  const passwordSetupMode = Boolean(session?.user.app_metadata?.invitation_pending) && !invitationCompleted;
-  if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} onPasswordSet={() => setInvitationCompleted(true)} />;
+  const passwordSetupMode = invitationNeedsPassword && !invitationCompleted;
+  if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} invitedEmail={session?.user.email} onPasswordSet={() => { setInvitationCompleted(true); setInvitationNeedsPassword(false); }} />;
   if (loadingOrganization) return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Preparando sua rede...</main>;
   if (platformAdminOpen && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
   if (organization && !organization.active && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso temporariamente suspenso</h1><p className="mt-3 text-sm leading-6 text-slate-600">Esta rede está suspensa. Entre em contato com o administrador responsável para regularizar o acesso.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;

@@ -15,11 +15,11 @@ Deno.serve(async (request) => {
     const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return Response.json({ error: 'Sua sessão expirou. Abra novamente o convite.' }, { status: 401, headers: corsHeaders });
-    if (!user.app_metadata?.invitation_pending) return Response.json({ ok: true }, { headers: corsHeaders });
+    if (user.app_metadata?.invitation_completed) return Response.json({ ok: true }, { headers: corsHeaders });
 
     const adminClient = createClient(url, serviceRoleKey);
     const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, {
-      app_metadata: { ...user.app_metadata, invitation_pending: false },
+      app_metadata: { ...user.app_metadata, invitation_pending: false, invitation_completed: true },
     });
     if (updateError) throw updateError;
     await adminClient.from('platform_invites').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('invited_user_id', user.id).eq('status', 'pending');
