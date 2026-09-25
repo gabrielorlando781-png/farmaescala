@@ -35,9 +35,11 @@ import { PharmacySettingsModal } from './components/PharmacySettingsModal';
 import { AiManagerChat } from './components/AiManagerChat';
 import { getScheduleViewMode, isCompactScheduleMode } from './utils/scheduleViewMode';
 import { AuthScreen } from './components/AuthScreen';
+import { OrganizationOnboarding } from './components/OrganizationOnboarding';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
+type Organization = { id: string; name: string; slug: string };
 
 const normalizeEmployee = ({ crf: _crf, ...employee }: PersistedEmployee): Employee => {
   const isLegacyPharmacist =
@@ -69,6 +71,7 @@ const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings =>
 };
 
 function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+  const storageKey = (name: string) => `${name}_${user.id}`;
   // Current Date State
   const now = new Date();
   const [currentYear, setCurrentYear] = useState<number>(now.getFullYear());
@@ -77,23 +80,23 @@ function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
 
   // Persistence State
   const [employees, setEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem('farma_employees_clean');
+    const saved = localStorage.getItem(storageKey('farma_employees_clean'));
     if (!saved) return INITIAL_EMPLOYEES;
     return (JSON.parse(saved) as PersistedEmployee[]).map(normalizeEmployee);
   });
 
   const [shifts, setShifts] = useState<ShiftType[]>(() => {
-    const saved = localStorage.getItem('farma_shifts_clean');
+    const saved = localStorage.getItem(storageKey('farma_shifts_clean'));
     return saved ? JSON.parse(saved) : INITIAL_SHIFTS;
   });
 
   const [settings, setSettings] = useState<PharmacySettings>(() => {
-    const saved = localStorage.getItem('farma_settings_clean');
+    const saved = localStorage.getItem(storageKey('farma_settings_clean'));
     return saved ? normalizeSettings(JSON.parse(saved)) : INITIAL_PHARMACY_SETTINGS;
   });
 
   const [schedulesMap, setSchedulesMap] = useState<Record<string, MonthSchedule>>(() => {
-    const saved = localStorage.getItem('farma_schedules_clean');
+    const saved = localStorage.getItem(storageKey('farma_schedules_clean'));
     if (saved) {
       return JSON.parse(saved);
     }
@@ -131,19 +134,19 @@ function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
 
   // Sync to local storage
   useEffect(() => {
-    localStorage.setItem('farma_employees_clean', JSON.stringify(employees));
+    localStorage.setItem(storageKey('farma_employees_clean'), JSON.stringify(employees));
   }, [employees]);
 
   useEffect(() => {
-    localStorage.setItem('farma_shifts_clean', JSON.stringify(shifts));
+    localStorage.setItem(storageKey('farma_shifts_clean'), JSON.stringify(shifts));
   }, [shifts]);
 
   useEffect(() => {
-    localStorage.setItem('farma_settings_clean', JSON.stringify(settings));
+    localStorage.setItem(storageKey('farma_settings_clean'), JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {
-    localStorage.setItem('farma_schedules_clean', JSON.stringify(schedulesMap));
+    localStorage.setItem(storageKey('farma_schedules_clean'), JSON.stringify(schedulesMap));
   }, [schedulesMap]);
 
   // Current Month Schedule Instance
@@ -1026,6 +1029,28 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [recoveryMode, setRecoveryMode] = useState(false);
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [loadingOrganization, setLoadingOrganization] = useState(false);
+
+  const loadOrganization = async (userId: string) => {
+    if (!supabase) return;
+    setLoadingOrganization(true);
+    const { data, error } = await supabase
+      .from('organization_memberships')
+      .select('organizations (id, name, slug)')
+      .eq('user_id', userId)
+      .eq('active', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Organization lookup error:', error);
+      setOrganization(null);
+    } else {
+      setOrganization((data?.organizations as unknown as Organization | null) ?? null);
+    }
+    setLoadingOrganization(false);
+  };
 
   useEffect(() => {
     if (!supabase) {
@@ -1047,6 +1072,14 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!session?.user.id || recoveryMode) {
+      setOrganization(null);
+      return;
+    }
+    void loadOrganization(session.user.id);
+  }, [session?.user.id, recoveryMode]);
+
   const handleSignOut = async () => {
     await supabase?.auth.signOut();
   };
@@ -1060,5 +1093,7 @@ export default function App() {
   }
 
   if (!session || recoveryMode) return <AuthScreen recoveryMode={recoveryMode} />;
+  if (loadingOrganization) return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Preparando sua rede...</main>;
+  if (!organization) return <OrganizationOnboarding onCreated={() => loadOrganization(session.user.id)} />;
   return <Dashboard user={session.user} onSignOut={handleSignOut} />;
 }
