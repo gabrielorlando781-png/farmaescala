@@ -3,3 +3,6 @@ verify_jwt = true
 
 [functions.ai-transcribe]
 verify_jwt = true
+
+[functions.platform-admin]
+verify_jwt = true

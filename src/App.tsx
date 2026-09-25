@@ -35,7 +35,7 @@ import { PharmacySettingsModal } from './components/PharmacySettingsModal';
 import { AiManagerChat } from './components/AiManagerChat';
 import { getScheduleViewMode, isCompactScheduleMode } from './utils/scheduleViewMode';
 import { AuthScreen } from './components/AuthScreen';
-import { OrganizationOnboarding } from './components/OrganizationOnboarding';
+import { PlatformAdminPanel } from './components/PlatformAdminPanel';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
@@ -70,7 +70,7 @@ const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings =>
   };
 };
 
-function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin }: { user: User; onSignOut: () => void; isPlatformAdmin: boolean; onOpenPlatformAdmin: () => void }) {
   const storageKey = (name: string) => `${name}_${user.id}`;
   // Current Date State
   const now = new Date();
@@ -879,6 +879,8 @@ function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
         totalWorkingHours={totalWorkingHours}
         userEmail={user.email ?? ''}
         onSignOut={onSignOut}
+        isPlatformAdmin={isPlatformAdmin}
+        onOpenPlatformAdmin={onOpenPlatformAdmin}
       />
 
       {/* Navigation Tabs */}
@@ -1031,18 +1033,23 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [platformAdminOpen, setPlatformAdminOpen] = useState(false);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
 
   const loadOrganization = async (userId: string) => {
     if (!supabase) return;
     setLoadingOrganization(true);
-    const { data, error } = await supabase
+    const [{ data, error }, { data: profile, error: profileError }] = await Promise.all([
+      supabase
       .from('organization_memberships')
       .select('organizations (id, name, slug)')
       .eq('user_id', userId)
       .eq('active', true)
       .limit(1)
-      .maybeSingle();
+      .maybeSingle(),
+      supabase.from('profiles').select('is_platform_admin').eq('id', userId).maybeSingle(),
+    ]);
 
     if (error) {
       console.error('Organization lookup error:', error);
@@ -1050,6 +1057,8 @@ export default function App() {
     } else {
       setOrganization((data?.organizations as unknown as Organization | null) ?? null);
     }
+    if (profileError) console.error('Profile lookup error:', profileError);
+    setIsPlatformAdmin(Boolean(profile?.is_platform_admin));
     setLoadingOrganization(false);
   };
 
@@ -1076,6 +1085,7 @@ export default function App() {
   useEffect(() => {
     if (!session?.user.id || recoveryMode) {
       setOrganization(null);
+      setIsPlatformAdmin(false);
       return;
     }
     void loadOrganization(session.user.id);
@@ -1093,8 +1103,11 @@ export default function App() {
     return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Autenticação ainda não configurada</h1><p className="mt-3 text-sm leading-6 text-slate-600">Adicione VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente do Render para liberar o login.</p></section></main>;
   }
 
-  if (!session || recoveryMode) return <AuthScreen recoveryMode={recoveryMode} />;
+  const passwordSetupMode = Boolean(session?.user.user_metadata?.must_set_password);
+  if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} />;
   if (loadingOrganization) return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Preparando sua rede...</main>;
-  if (!organization) return <OrganizationOnboarding onCreated={() => loadOrganization(session.user.id)} />;
-  return <Dashboard user={session.user} onSignOut={handleSignOut} />;
+  if (platformAdminOpen && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
+  if (!organization && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso pendente de convite</h1><p className="mt-3 text-sm leading-6 text-slate-600">Sua conta foi autenticada, mas ainda não está vinculada a uma rede. Peça ao administrador do FarmaEscala para enviar o convite correto.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
+  if (!organization) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
+  return <Dashboard user={session.user} onSignOut={handleSignOut} isPlatformAdmin={isPlatformAdmin} onOpenPlatformAdmin={() => setPlatformAdminOpen(true)} />;
 }

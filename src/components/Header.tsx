@@ -8,7 +8,8 @@ import {
   CalendarDays,
   Trash2,
   LogOut,
-  UserRound
+  UserRound,
+  ShieldCheck
 } from 'lucide-react';
 import { PharmacySettings, MonthSchedule } from '../types';
 import { getMonthName } from '../utils/scheduleRules';
@@ -27,6 +28,8 @@ interface HeaderProps {
   totalWorkingHours: number;
   userEmail: string;
   onSignOut: () => void;
+  isPlatformAdmin?: boolean;
+  onOpenPlatformAdmin?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -43,6 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   totalWorkingHours,
   userEmail,
   onSignOut,
+  isPlatformAdmin = false,
+  onOpenPlatformAdmin,
 }) => {
   return (
     <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
@@ -75,6 +80,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
+
+          {isPlatformAdmin && onOpenPlatformAdmin && <button
+            type="button"
+            onClick={onOpenPlatformAdmin}
+            className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-950/50 px-3 py-1.5 text-xs font-bold text-sky-200 transition hover:bg-sky-900"
+            title="Administração da plataforma"
+          ><ShieldCheck className="h-3.5 w-3.5" /><span className="hidden sm:inline">Plataforma</span></button>}
           <div className="px-3 py-0.5 text-center min-w-[130px]">
             <span className="text-xs font-bold text-white tracking-wide uppercase">
               {getMonthName(currentMonth)}
