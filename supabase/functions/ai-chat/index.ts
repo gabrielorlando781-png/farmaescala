@@ -24,7 +24,7 @@ Deno.serve(async (request) => {
     const conversation = messages.slice(-8).map((message: { role: string; content: string }) =>
       `${message.role === 'user' ? 'Gestor' : 'Assistente'}: ${message.content}`,
     ).join('\n');
-    const text = await generateGeminiContent(Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash-lite', {
+    const text = await generateGeminiContent(Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash-lite', {
       systemInstruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: 'user', parts: [{ text: `DADOS ATUAIS:\n${JSON.stringify(context)}\n\nCONVERSA:\n${conversation}` }] }],
       generationConfig: { temperature: 0, maxOutputTokens: 700, responseMimeType: 'application/json' },
