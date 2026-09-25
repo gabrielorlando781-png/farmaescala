@@ -6,7 +6,7 @@ O Firebase Hosting entrega somente o frontend. A IA permanece protegida nas Edge
 
 1. Entre em https://console.firebase.google.com/ e clique em **Adicionar projeto**.
 2. Crie o projeto sem ativar cobrança. O plano Spark é suficiente para o Hosting.
-3. Anote o **ID do projeto**, que aparece nas configurações do projeto.
+3. O projeto do FarmaEscala já está vinculado ao ID `farmaescala-3bdb5`.
 
 ## 2. Preparar o Supabase
 
@@ -38,11 +38,10 @@ No PowerShell, dentro da pasta do projeto:
 
 ```powershell
 npx firebase-tools login
-npx firebase-tools use --add
 npm run deploy:firebase
 ```
 
-Escolha o projeto criado no passo 1. Ao final, o Firebase exibirá a URL `https://SEU_PROJETO.web.app`.
+Ao final, o Firebase exibirá a URL `https://farmaescala-3bdb5.web.app`.
 
 ## 5. Liberar login por e-mail
 
