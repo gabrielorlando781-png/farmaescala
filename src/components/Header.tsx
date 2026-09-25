@@ -6,7 +6,9 @@ import {
   Printer, 
   Settings,
   CalendarDays,
-  Trash2
+  Trash2,
+  LogOut,
+  UserRound
 } from 'lucide-react';
 import { PharmacySettings, MonthSchedule } from '../types';
 import { getMonthName } from '../utils/scheduleRules';
@@ -23,6 +25,8 @@ interface HeaderProps {
   onOpenSettingsModal: () => void;
   onDeleteSchedule: () => void;
   totalWorkingHours: number;
+  userEmail: string;
+  onSignOut: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -37,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettingsModal,
   onDeleteSchedule,
   totalWorkingHours,
+  userEmail,
+  onSignOut,
 }) => {
   return (
     <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
@@ -132,6 +138,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Settings className="w-4 h-4" />
           </button>
+
+          <div className="hidden xl:flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300" title={userEmail}>
+            <UserRound className="h-3.5 w-3.5 text-sky-300" />
+            <span className="max-w-32 truncate">{userEmail}</span>
+            <button type="button" onClick={onSignOut} className="ml-1 text-slate-400 hover:text-white" title="Sair"><LogOut className="h-3.5 w-3.5" /></button>
+          </div>
+          <button type="button" onClick={onSignOut} className="xl:hidden p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700" title="Sair"><LogOut className="h-4 w-4" /></button>
         </div>
       </div>
     </header>
