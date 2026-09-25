@@ -1,8 +1,8 @@
 import React, { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, ShieldCheck, Store } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-type Organization = { id: string; name: string; slug: string; active: boolean; created_at: string };
+type Organization = { id: string; name: string; slug: string; active: boolean; store_creation_enabled: boolean; created_at: string; stores: { id: string; name: string; code: string; active: boolean }[] };
 
 export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -17,9 +17,25 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
 
   const loadOrganizations = async () => {
     if (!supabase) return;
-    const { data, error: listError } = await supabase.from('organizations').select('id, name, slug, active, created_at').order('created_at', { ascending: false });
+    const { data, error: listError } = await supabase.from('organizations').select('id, name, slug, active, store_creation_enabled, created_at, stores (id, name, code, active)').order('created_at', { ascending: false });
     if (listError) setError('Não foi possível carregar as redes.');
     else setOrganizations((data ?? []) as Organization[]);
+  };
+
+  const changeStoreCreationPermission = async (organization: Organization) => {
+    if (!supabase) return;
+    const action = organization.store_creation_enabled ? 'bloquear' : 'liberar';
+    if (!window.confirm(`Deseja ${action} a criação de filiais para ${organization.name}?`)) return;
+    setError(''); setSuccess(''); setChangingOrganizationId(organization.id);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('platform-admin', { body: { action: 'set_store_creation_enabled', organizationId: organization.id, enabled: !organization.store_creation_enabled } });
+      if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(data.error);
+      setSuccess(`Criação de filiais ${organization.store_creation_enabled ? 'bloqueada' : 'liberada'} para ${organization.name}.`);
+      await loadOrganizations();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Não foi possível alterar a permissão.');
+    } finally { setChangingOrganizationId(null); }
   };
 
   const changeOrganizationStatus = async (organization: Organization) => {
@@ -87,7 +103,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
           </form>
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes cadastradas</h2></div><div className="mt-5 space-y-3">{organizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede cadastrada ainda.</p> : organizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${organization.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{organization.active ? '● Ativa' : '● Suspensa'}</span></div><button disabled={changingOrganizationId === organization.id} onClick={() => void changeOrganizationStatus(organization)} className={`mt-4 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.active ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{organization.active ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}{changingOrganizationId === organization.id ? 'Salvando...' : organization.active ? 'Suspender acesso' : 'Reativar acesso'}</button></div>)}</div></section>
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes e filiais</h2></div><div className="mt-5 space-y-3">{organizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede cadastrada ainda.</p> : organizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${organization.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{organization.active ? '● Ativa' : '● Suspensa'}</span></div><div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="flex items-center gap-1.5 text-xs font-bold text-slate-700"><Store className="h-3.5 w-3.5 text-sky-600" />{organization.stores.length} filial(is)</p>{organization.stores.length > 0 && <p className="mt-1.5 text-xs leading-5 text-slate-500">{organization.stores.map((store) => `${store.name} (${store.code})`).join(' · ')}</p>}</div><div className="mt-4 flex flex-wrap gap-2"><button disabled={changingOrganizationId === organization.id} onClick={() => void changeOrganizationStatus(organization)} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.active ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{organization.active ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}{organization.active ? 'Suspender acesso' : 'Reativar acesso'}</button><button disabled={changingOrganizationId === organization.id || !organization.active} onClick={() => void changeStoreCreationPermission(organization)} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.store_creation_enabled ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}>{organization.store_creation_enabled ? 'Bloquear criação de filiais' : 'Liberar criação de filiais'}</button></div></div>)}</div></section>
       </div>
     </div>
   </main>;

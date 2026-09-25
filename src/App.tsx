@@ -36,10 +36,11 @@ import { AiManagerChat } from './components/AiManagerChat';
 import { getScheduleViewMode, isCompactScheduleMode } from './utils/scheduleViewMode';
 import { AuthScreen } from './components/AuthScreen';
 import { PlatformAdminPanel } from './components/PlatformAdminPanel';
+import { StoreManagerPanel } from './components/StoreManagerPanel';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
-type Organization = { id: string; name: string; slug: string; active: boolean };
+type Organization = { id: string; name: string; slug: string; active: boolean; store_creation_enabled: boolean };
 
 const normalizeEmployee = ({ crf: _crf, ...employee }: PersistedEmployee): Employee => {
   const isLegacyPharmacist =
@@ -70,7 +71,7 @@ const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings =>
   };
 };
 
-function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin }: { user: User; onSignOut: () => void; isPlatformAdmin: boolean; onOpenPlatformAdmin: () => void }) {
+function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canManageStores, onOpenStores }: { user: User; onSignOut: () => void; isPlatformAdmin: boolean; onOpenPlatformAdmin: () => void; canManageStores: boolean; onOpenStores: () => void }) {
   const storageKey = (name: string) => `${name}_${user.id}`;
   // Current Date State
   const now = new Date();
@@ -881,6 +882,8 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin }: { 
         onSignOut={onSignOut}
         isPlatformAdmin={isPlatformAdmin}
         onOpenPlatformAdmin={onOpenPlatformAdmin}
+        canManageStores={canManageStores}
+        onOpenStores={onOpenStores}
       />
 
       {/* Navigation Tabs */}
@@ -1033,8 +1036,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [membershipRole, setMembershipRole] = useState<string | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminOpen, setPlatformAdminOpen] = useState(false);
+  const [storeManagerOpen, setStoreManagerOpen] = useState(false);
   const [invitationCompleted, setInvitationCompleted] = useState(false);
   const [invitationNeedsPassword, setInvitationNeedsPassword] = useState(false);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
@@ -1050,8 +1055,10 @@ export default function App() {
     if (statusError || status?.error) {
       console.error('Organization lookup error:', statusError ?? status.error);
       setOrganization(null);
+      setMembershipRole(null);
     } else {
       setOrganization((status?.organization as Organization | null) ?? null);
+      setMembershipRole((status?.membershipRole as string | null) ?? null);
     }
     if (profileError) console.error('Profile lookup error:', profileError);
     setIsPlatformAdmin(Boolean(profile?.is_platform_admin));
@@ -1081,6 +1088,7 @@ export default function App() {
   useEffect(() => {
     if (!session?.user.id || recoveryMode) {
       setOrganization(null);
+      setMembershipRole(null);
       setIsPlatformAdmin(false);
       return;
     }
@@ -1119,8 +1127,9 @@ export default function App() {
   if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} invitedEmail={session?.user.email} onPasswordSet={() => { setInvitationCompleted(true); setInvitationNeedsPassword(false); }} />;
   if (loadingOrganization) return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Preparando sua rede...</main>;
   if (platformAdminOpen && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
+  if (storeManagerOpen && organization) return <StoreManagerPanel organization={organization} canCreateStores={Boolean(organization.store_creation_enabled && ['network_owner', 'network_admin'].includes(membershipRole ?? ''))} onClose={() => setStoreManagerOpen(false)} />;
   if (organization && !organization.active && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso temporariamente suspenso</h1><p className="mt-3 text-sm leading-6 text-slate-600">Esta rede está suspensa. Entre em contato com o administrador responsável para regularizar o acesso.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
   if (!organization && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso pendente de convite</h1><p className="mt-3 text-sm leading-6 text-slate-600">Sua conta foi autenticada, mas ainda não está vinculada a uma rede. Peça ao administrador do FarmaEscala para enviar o convite correto.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
   if (!organization) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
-  return <Dashboard user={session.user} onSignOut={handleSignOut} isPlatformAdmin={isPlatformAdmin} onOpenPlatformAdmin={() => setPlatformAdminOpen(true)} />;
+  return <Dashboard user={session.user} onSignOut={handleSignOut} isPlatformAdmin={isPlatformAdmin} onOpenPlatformAdmin={() => setPlatformAdminOpen(true)} canManageStores={['network_owner', 'network_admin'].includes(membershipRole ?? '')} onOpenStores={() => setStoreManagerOpen(true)} />;
 }

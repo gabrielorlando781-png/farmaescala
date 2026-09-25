@@ -14,9 +14,9 @@ Deno.serve(async (request) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return Response.json({ error: 'Sua sessão expirou.' }, { status: 401, headers: corsHeaders });
     const adminClient = createClient(url, serviceRoleKey);
-    const { data, error } = await adminClient.from('organization_memberships').select('organizations (id, name, slug, active)').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
+    const { data, error } = await adminClient.from('organization_memberships').select('role, organizations (id, name, slug, active, store_creation_enabled)').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
     if (error) throw error;
-    return Response.json({ organization: data?.organizations ?? null }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return Response.json({ organization: data?.organizations ?? null, membershipRole: data?.role ?? null }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : 'Não foi possível verificar seu acesso.' }, { status: 400, headers: corsHeaders });
   }

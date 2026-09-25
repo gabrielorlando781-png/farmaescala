@@ -9,7 +9,8 @@ import {
   Trash2,
   LogOut,
   UserRound,
-  ShieldCheck
+  ShieldCheck,
+  Store
 } from 'lucide-react';
 import { PharmacySettings, MonthSchedule } from '../types';
 import { getMonthName } from '../utils/scheduleRules';
@@ -30,6 +31,8 @@ interface HeaderProps {
   onSignOut: () => void;
   isPlatformAdmin?: boolean;
   onOpenPlatformAdmin?: () => void;
+  canManageStores?: boolean;
+  onOpenStores?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -48,6 +51,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSignOut,
   isPlatformAdmin = false,
   onOpenPlatformAdmin,
+  canManageStores = false,
+  onOpenStores,
 }) => {
   return (
     <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
@@ -120,6 +125,8 @@ export const Header: React.FC<HeaderProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-sky-200" />
             <span>Criar escala 5x2</span>
           </button>
+
+          {canManageStores && onOpenStores && <button type="button" onClick={onOpenStores} className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700"><Store className="h-3.5 w-3.5 text-sky-300" /><span className="hidden sm:inline">Filiais</span></button>}
 
           {/* Print */}
           <button

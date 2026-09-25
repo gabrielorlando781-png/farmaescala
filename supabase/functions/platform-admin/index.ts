@@ -4,7 +4,8 @@ import { corsHeaders } from '../_shared/cors.ts';
 type CreateInvitationPayload = {
   action: 'create_network_invitation';
   organization: { name: string; slug: string; ownerName: string; ownerEmail: string };
-} | { action: 'set_organization_active'; organizationId: string; active: boolean };
+} | { action: 'set_organization_active'; organizationId: string; active: boolean }
+  | { action: 'set_store_creation_enabled'; organizationId: string; enabled: boolean };
 
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
@@ -33,6 +34,13 @@ Deno.serve(async (request) => {
       const { data: organization, error: updateError } = await adminClient.from('organizations').update({ active: payload.active }).eq('id', payload.organizationId).select('id, name, slug, active').single();
       if (updateError || !organization) return response({ error: 'Não foi possível alterar o status da rede.' }, 400);
       await adminClient.from('audit_logs').insert({ organization_id: organization.id, actor_id: user.id, action: organization.active ? 'organization_activated' : 'organization_suspended', entity_type: 'organization', entity_id: organization.id, after_data: { active: organization.active } });
+      return response({ organization });
+    }
+    if (payload.action === 'set_store_creation_enabled') {
+      if (!payload.organizationId || typeof payload.enabled !== 'boolean') return response({ error: 'Dados da rede inválidos.' }, 400);
+      const { data: organization, error: updateError } = await adminClient.from('organizations').update({ store_creation_enabled: payload.enabled }).eq('id', payload.organizationId).select('id, name, slug, active, store_creation_enabled').single();
+      if (updateError || !organization) return response({ error: 'Não foi possível alterar a criação de filiais.' }, 400);
+      await adminClient.from('audit_logs').insert({ organization_id: organization.id, actor_id: user.id, action: organization.store_creation_enabled ? 'store_creation_enabled' : 'store_creation_disabled', entity_type: 'organization', entity_id: organization.id, after_data: { store_creation_enabled: organization.store_creation_enabled } });
       return response({ organization });
     }
     if (payload.action !== 'create_network_invitation') return response({ error: 'Ação inválida.' }, 400);
