@@ -452,7 +452,9 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
       'active', 'preferredShiftId', 'unavailableDays', 'preferredDaysOff', 'notes',
     ]);
     const employeeRoles = new Set<Employee['role']>([
-      'farmaceutico', 'balconista', 'caixa', 'dermoconsultor', 'estoquista', 'gerente',
+      'farmaceutico', 'balconista', 'caixa', 'dermoconsultor', 'perfumista', 'estoquista',
+      'entregador', 'auxiliar_administrativo', 'servicos_gerais', 'seguranca', 'subgerente',
+      'gerente', 'outro',
     ]);
     const contractTypes = new Set<Employee['contractType']>([
       'clt_44h', 'escala_12x36', 'escala_6x1', 'escala_5x2', 'clt_40h', 'estagio_30h',
@@ -462,8 +464,15 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
       balconista: 'Balconista de Farmácia',
       caixa: 'Operador de Caixa',
       dermoconsultor: 'Dermoconsultor',
+      perfumista: 'Perfumista',
       estoquista: 'Estoquista',
+      entregador: 'Entregador',
+      auxiliar_administrativo: 'Auxiliar Administrativo',
+      servicos_gerais: 'Serviços Gerais',
+      seguranca: 'Segurança',
+      subgerente: 'Subgerente',
       gerente: 'Gerente',
+      outro: 'Outra função',
     };
     const settingFields = new Set(Object.keys(settings));
     const isValidScheduleDate = (value?: string) => {

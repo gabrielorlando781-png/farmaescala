@@ -29,8 +29,15 @@ const ROLE_OPTIONS: { value: EmployeeRole; label: string }[] = [
   { value: 'balconista', label: 'Balconista de Farmácia' },
   { value: 'caixa', label: 'Operador(a) de Caixa' },
   { value: 'dermoconsultor', label: 'Dermoconsultor(a)' },
-  { value: 'estoquista', label: 'Auxiliar de Farmácia & Estoque' },
+  { value: 'perfumista', label: 'Perfumista' },
+  { value: 'estoquista', label: 'Estoquista / Auxiliar de Estoque' },
+  { value: 'entregador', label: 'Entregador(a) / Motoboy' },
+  { value: 'auxiliar_administrativo', label: 'Auxiliar Administrativo' },
+  { value: 'servicos_gerais', label: 'Serviços Gerais / Limpeza' },
+  { value: 'seguranca', label: 'Segurança / Porteiro(a)' },
+  { value: 'subgerente', label: 'Subgerente de Loja' },
   { value: 'gerente', label: 'Gerente de Loja' },
+  { value: 'outro', label: 'Outra função' },
 ];
 
 const CONTRACT_OPTIONS: { value: ContractType; label: string; defaultHours: number }[] = [
@@ -117,7 +124,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
     setFormData({
       ...formData,
       role: newRole,
-      roleTitle: roleObj?.label || '',
+      roleTitle: newRole === 'outro' ? '' : roleObj?.label || '',
     });
   };
 
@@ -410,7 +417,21 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
                     ))}
                   </select>
                 </div>
-
+                {formData.role === 'outro' && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Descreva a função *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.roleTitle || ''}
+                      onChange={(e) => setFormData({ ...formData, roleTitle: e.target.value })}
+                      placeholder="Ex.: Auxiliar de compras"
+                      className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Contract & Target Hours */}

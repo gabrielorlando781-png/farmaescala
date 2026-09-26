@@ -5,8 +5,15 @@ export type EmployeeRole =
   | 'balconista'
   | 'caixa'
   | 'dermoconsultor'
+  | 'perfumista'
   | 'estoquista'
-  | 'gerente';
+  | 'entregador'
+  | 'auxiliar_administrativo'
+  | 'servicos_gerais'
+  | 'seguranca'
+  | 'subgerente'
+  | 'gerente'
+  | 'outro';
 
 export type ContractType =
   | 'clt_44h'       // 6x1 ou 5x2 padrão (7h20/dia ou 8h48/dia)
