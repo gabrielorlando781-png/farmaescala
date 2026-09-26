@@ -109,7 +109,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   // Modals state
   const [isAutoScheduleOpen, setIsAutoScheduleOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [storeDataReady, setStoreDataReady] = useState(false);
+  const [loadedStoreId, setLoadedStoreId] = useState<string | null>(null);
 
   // Remove the legacy fictitious dataset even when Fast Refresh preserved the
   // previous React state while this version was being installed.
@@ -155,7 +155,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   useEffect(() => {
     if (!supabase || !selectedStoreId) return;
     let active = true;
-    setStoreDataReady(false);
+    setLoadedStoreId(null);
     void (async () => {
       const { data, error } = await supabase.from('store_operational_data').select('employees, shifts, settings, schedules').eq('store_id', selectedStoreId).maybeSingle();
       if (!active) return;
@@ -169,18 +169,20 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         const { error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees, shifts, settings, schedules: schedulesMap, updated_by: user.id });
         if (createError) console.error('Store data migration error:', createError);
       }
-      if (active) setStoreDataReady(true);
+      if (active) setLoadedStoreId(selectedStoreId);
     })();
     return () => { active = false; };
   }, [selectedStoreId]);
 
   useEffect(() => {
-    if (!supabase || !selectedStoreId || !storeDataReady) return;
+    // Só persiste depois de confirmar que os dados exibidos pertencem à filial selecionada.
+    // Isso impede que uma troca de filial grave dados da filial anterior na nova.
+    if (!supabase || !selectedStoreId || loadedStoreId !== selectedStoreId) return;
     const timeout = window.setTimeout(() => {
       void supabase.from('store_operational_data').upsert({ store_id: selectedStoreId, employees, shifts, settings, schedules: schedulesMap, updated_by: user.id });
     }, 350);
     return () => window.clearTimeout(timeout);
-  }, [employees, shifts, settings, schedulesMap, selectedStoreId, storeDataReady, user.id]);
+  }, [employees, shifts, settings, schedulesMap, selectedStoreId, loadedStoreId, user.id]);
 
   // Current Month Schedule Instance
   const scheduleId = `schedule_${currentYear}_${currentMonth}`;
