@@ -93,7 +93,9 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
       });
       if (invokeError) throw invokeError;
       if (data?.error) throw new Error(data.error);
-      setSuccess(`Convite enviado para ${adminEmail}. A rede foi criada e ficará disponível quando a pessoa aceitar o convite.`);
+      setSuccess(data?.invitationSent === false
+        ? `A rede foi criada e ${adminEmail} já recebeu acesso como responsável, pois essa conta já existia.`
+        : `Convite enviado para ${adminEmail}. A rede foi criada e ficará disponível quando a pessoa aceitar o convite.`);
       setName(''); setSlug(''); setAdminName(''); setAdminEmail('');
       await loadOrganizations();
     } catch (requestError) {

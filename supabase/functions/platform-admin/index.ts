@@ -54,38 +54,45 @@ Deno.serve(async (request) => {
     const { data: existingOrganization } = await adminClient.from('organizations').select('id').eq('slug', normalizedSlug).maybeSingle();
     if (existingOrganization) return response({ error: 'Esse identificador de rede já está em uso.' }, 409);
 
-    const redirectTo = Deno.env.get('SITE_URL') || 'https://farmaescala-3bdb5.web.app';
-    const { data: invitation, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: String(ownerName).trim(), must_set_password: true }, redirectTo,
-    });
-    if (inviteError || !invitation.user) {
-      const details = inviteError?.message || '';
-      if (/already|registered|exists|duplicate/i.test(details)) {
-        return response({ error: 'Este e-mail já possui uma conta. Para criar uma nova rede por convite, use um e-mail que ainda não tenha cadastro.' }, 409);
-      }
-      throw new Error(details || 'Não foi possível criar o convite.');
-    }
+    // Uma conta existente não precisa (nem pode) receber um segundo convite do Supabase.
+    // O administrador da plataforma pode conceder a nova rede diretamente a ela.
+    const { data: existingProfile, error: existingProfileError } = await adminClient
+      .from('profiles').select('id').eq('email', email).maybeSingle();
+    if (existingProfileError) throw new Error('Não foi possível verificar o responsável informado.');
 
-    const invitedUser = invitation.user;
-    const { error: invitationFlagError } = await adminClient.auth.admin.updateUserById(invitedUser.id, {
-      app_metadata: { ...invitedUser.app_metadata, invitation_pending: true },
-    });
-    if (invitationFlagError) throw new Error('Não foi possível preparar o acesso inicial do responsável.');
-    const { error: profileUpsertError } = await adminClient.from('profiles').upsert({ id: invitedUser.id, email, full_name: String(ownerName).trim() }, { onConflict: 'id' });
-    if (profileUpsertError) throw new Error('Não foi possível preparar o perfil do responsável.');
+    let ownerUserId: string;
+    let invitationSent = false;
+    if (existingProfile?.id) {
+      ownerUserId = existingProfile.id;
+    } else {
+      const redirectTo = Deno.env.get('SITE_URL') || 'https://farmaescala-3bdb5.web.app';
+      const { data: invitation, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+        data: { full_name: String(ownerName).trim(), must_set_password: true }, redirectTo,
+      });
+      if (inviteError || !invitation.user) throw new Error(inviteError?.message || 'Não foi possível criar o convite.');
+
+      ownerUserId = invitation.user.id;
+      invitationSent = true;
+      const { error: invitationFlagError } = await adminClient.auth.admin.updateUserById(ownerUserId, {
+        app_metadata: { ...invitation.user.app_metadata, invitation_pending: true },
+      });
+      if (invitationFlagError) throw new Error('Não foi possível preparar o acesso inicial do responsável.');
+      const { error: profileUpsertError } = await adminClient.from('profiles').upsert({ id: ownerUserId, email, full_name: String(ownerName).trim() }, { onConflict: 'id' });
+      if (profileUpsertError) throw new Error('Não foi possível preparar o perfil do responsável.');
+    }
 
     const { data: organization, error: organizationError } = await adminClient.from('organizations').insert({ name: String(name).trim(), slug: normalizedSlug }).select('id, name, slug').single();
     if (organizationError || !organization) throw new Error(organizationError?.message || 'Não foi possível criar a rede.');
 
-    const { error: membershipError } = await adminClient.from('organization_memberships').insert({ organization_id: organization.id, user_id: invitedUser.id, role: 'network_owner' });
+    const { error: membershipError } = await adminClient.from('organization_memberships').insert({ organization_id: organization.id, user_id: ownerUserId, role: 'network_owner' });
     if (membershipError) {
       await adminClient.from('organizations').delete().eq('id', organization.id);
       throw new Error('Não foi possível vincular o responsável à rede.');
     }
 
-    await adminClient.from('platform_invites').insert({ organization_id: organization.id, invited_user_id: invitedUser.id, email, role: 'network_owner', invited_by: user.id });
+    await adminClient.from('platform_invites').insert({ organization_id: organization.id, invited_user_id: ownerUserId, email, role: 'network_owner', invited_by: user.id });
     await adminClient.from('audit_logs').insert({ organization_id: organization.id, actor_id: user.id, action: 'organization_invited', entity_type: 'organization', entity_id: organization.id, after_data: { owner_email: email } });
-    return response({ organization });
+    return response({ organization, invitationSent });
   } catch (error) {
     console.error(error);
     return response({ error: error instanceof Error ? error.message : 'Não foi possível concluir o convite.' }, 400);
