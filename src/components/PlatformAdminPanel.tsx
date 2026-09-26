@@ -2,11 +2,16 @@ import React, { FormEvent, useEffect, useState } from 'react';
 import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, ShieldCheck, Store } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-type Membership = { role: string; profiles: { full_name: string | null; email: string | null } | null };
+type ProfileContact = { full_name: string | null; email: string | null };
+type Membership = { role: string; profiles: ProfileContact | ProfileContact[] | null };
 type StoreRecord = { id: string; name: string; code: string; active: boolean; store_memberships: Membership[] };
 type Organization = { id: string; name: string; slug: string; active: boolean; store_creation_enabled: boolean; created_at: string; stores: StoreRecord[]; organization_memberships: Membership[] };
 
-const managerEmails = (memberships: Membership[]) => memberships.filter((membership) => ['network_owner', 'network_admin', 'store_manager'].includes(membership.role)).map((membership) => membership.profiles?.email).filter((email): email is string => Boolean(email));
+const managerEmails = (memberships: Membership[]) => memberships
+  .filter((membership) => ['network_owner', 'network_admin', 'store_manager'].includes(membership.role))
+  .flatMap((membership) => Array.isArray(membership.profiles) ? membership.profiles : [membership.profiles])
+  .map((profile) => profile?.email)
+  .filter((email): email is string => Boolean(email));
 
 export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -23,7 +28,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
     if (!supabase) return;
     const { data, error: listError } = await supabase.from('organizations').select('id, name, slug, active, store_creation_enabled, created_at, organization_memberships (role, profiles (full_name, email)), stores (id, name, code, active, store_memberships (role, profiles (full_name, email)))').order('created_at', { ascending: false });
     if (listError) setError('Não foi possível carregar as redes.');
-    else setOrganizations((data ?? []) as Organization[]);
+    else setOrganizations((data ?? []) as unknown as Organization[]);
   };
 
   const changeStoreCreationPermission = async (organization: Organization) => {
