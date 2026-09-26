@@ -1,5 +1,5 @@
 import React, { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, RefreshCw, ShieldCheck, Store, Users } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, RefreshCw, ShieldCheck, Store, Trash2, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type ProfileContact = { full_name: string | null; email: string | null };
@@ -89,6 +89,37 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
     } finally { setChangingOrganizationId(null); }
   };
 
+  const deleteOrganization = async (organization: Organization) => {
+    if (!supabase) return;
+    const storeCount = organization.stores.length;
+    const firstConfirmation = window.confirm(
+      `Excluir definitivamente a rede ${organization.name}? Esta ação remove ${storeCount} filial(is), funcionários, escalas, turnos, convites e demais dados dessa rede. Não pode ser desfeita.`,
+    );
+    if (!firstConfirmation) return;
+    if (!window.confirm(`Confirma a exclusão definitiva de \"${organization.name}\"? Os dados removidos não poderão ser recuperados.`)) return;
+
+    setError(''); setSuccess(''); setChangingOrganizationId(organization.id);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('platform-admin', {
+        body: { action: 'delete_organization', organizationId: organization.id },
+      });
+      if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(data.error);
+
+      const deletedAuthUsers = Number(data?.deletedAuthUsers ?? 0);
+      const retainedAuthUsers = Number(data?.retainedAuthUsers ?? 0);
+      const failedAuthUsers = Number(data?.failedAuthUsers ?? 0);
+      setSuccess(
+        `Rede ${organization.name} e ${storeCount} filial(is) excluídas. ${deletedAuthUsers} conta(s) removida(s); esses e-mails já podem ser usados novamente.`
+        + (retainedAuthUsers ? ` ${retainedAuthUsers} conta(s) foram preservadas por terem outro acesso ou privilégio de administrador.` : '')
+        + (failedAuthUsers ? ` ${failedAuthUsers} conta(s) não puderam ser removidas; confira antes de reutilizar os e-mails.` : ''),
+      );
+      await loadOrganizations();
+    } catch (requestError) {
+      setError(await getFunctionErrorMessage(requestError, 'Não foi possível excluir a rede.'));
+    } finally { setChangingOrganizationId(null); }
+  };
+
   useEffect(() => { void loadOrganizations(); }, []);
 
   const visibleOrganizations = organizations.filter((organization) => {
@@ -158,7 +189,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
           </form>
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes e filiais</h2></div><button type="button" onClick={() => void loadOrganizations()} disabled={refreshing} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="Atualizar dados" aria-label="Atualizar dados"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /></button></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar rede, filial ou gerente" className="mt-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500" /><p className="mt-2 text-xs text-slate-500">{visibleOrganizations.length} rede(s) na lista. Indicadores acima consideram toda a plataforma.</p><div className="mt-5 space-y-3">{visibleOrganizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede encontrada.</p> : visibleOrganizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug}</p><p className="mt-1 text-xs text-slate-600">Responsável: {managerEmails(organization.organization_memberships).join(', ') || 'Sem responsável'}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${organization.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{organization.active ? '● Ativa' : '● Suspensa'}</span></div><div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="flex items-center gap-1.5 text-xs font-bold text-slate-700"><Store className="h-3.5 w-3.5 text-sky-600" />{organization.stores.length} filial(is) · {organization.stores.filter((store) => store.active).length} ativa(s)</p>{organization.stores.length > 0 && <div className="mt-2 space-y-2">{organization.stores.map((store) => <p key={store.id} className="text-xs leading-5 text-slate-500"><span className="font-semibold text-slate-700">{store.name} ({store.code}) · {store.active ? 'Ativa' : 'Inativa'}</span><br />Gerente: {managerEmails(store.store_memberships).join(', ') || 'Sem gerente atribuído'}</p>)}</div>}</div><div className="mt-4 flex flex-wrap gap-2"><button disabled={changingOrganizationId === organization.id} onClick={() => void changeOrganizationStatus(organization)} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.active ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{organization.active ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}{organization.active ? 'Suspender acesso' : 'Reativar acesso'}</button><button disabled={changingOrganizationId === organization.id || !organization.active} onClick={() => void changeStoreCreationPermission(organization)} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.store_creation_enabled ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}>{organization.store_creation_enabled ? 'Bloquear criação de filiais' : 'Liberar criação de filiais'}</button></div></div>)}</div></section>
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes e filiais</h2></div><button type="button" onClick={() => void loadOrganizations()} disabled={refreshing} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="Atualizar dados" aria-label="Atualizar dados"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /></button></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar rede, filial ou gerente" className="mt-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500" /><p className="mt-2 text-xs text-slate-500">{visibleOrganizations.length} rede(s) na lista. Indicadores acima consideram toda a plataforma.</p><div className="mt-5 space-y-3">{visibleOrganizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede encontrada.</p> : visibleOrganizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug}</p><p className="mt-1 text-xs text-slate-600">Responsável: {managerEmails(organization.organization_memberships).join(', ') || 'Sem responsável'}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${organization.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{organization.active ? '● Ativa' : '● Suspensa'}</span></div><div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="flex items-center gap-1.5 text-xs font-bold text-slate-700"><Store className="h-3.5 w-3.5 text-sky-600" />{organization.stores.length} filial(is) · {organization.stores.filter((store) => store.active).length} ativa(s)</p>{organization.stores.length > 0 && <div className="mt-2 space-y-2">{organization.stores.map((store) => <p key={store.id} className="text-xs leading-5 text-slate-500"><span className="font-semibold text-slate-700">{store.name} ({store.code}) · {store.active ? 'Ativa' : 'Inativa'}</span><br />Gerente: {managerEmails(store.store_memberships).join(', ') || 'Sem gerente atribuído'}</p>)}</div>}</div><div className="mt-4 flex flex-wrap gap-2"><button disabled={changingOrganizationId === organization.id} onClick={() => void changeOrganizationStatus(organization)} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.active ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{organization.active ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}{organization.active ? 'Suspender acesso' : 'Reativar acesso'}</button><button disabled={changingOrganizationId === organization.id || !organization.active} onClick={() => void changeStoreCreationPermission(organization)} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.store_creation_enabled ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}>{organization.store_creation_enabled ? 'Bloquear criação de filiais' : 'Liberar criação de filiais'}</button><button disabled={changingOrganizationId === organization.id} onClick={() => void deleteOrganization(organization)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-60"><Trash2 className="h-4 w-4" />Excluir rede</button></div></div>)}</div></section>
       </div>
     </div>
   </main>;

@@ -5,7 +5,8 @@ type CreateInvitationPayload = {
   action: 'create_network_invitation';
   organization: { name: string; slug: string; ownerName: string; ownerEmail: string };
 } | { action: 'set_organization_active'; organizationId: string; active: boolean }
-  | { action: 'set_store_creation_enabled'; organizationId: string; enabled: boolean };
+  | { action: 'set_store_creation_enabled'; organizationId: string; enabled: boolean }
+  | { action: 'delete_organization'; organizationId: string };
 
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
@@ -58,6 +59,68 @@ Deno.serve(async (request) => {
       if (updateError || !organization) return response({ error: 'Não foi possível alterar a criação de filiais.' }, 400);
       await adminClient.from('audit_logs').insert({ organization_id: organization.id, actor_id: user.id, action: organization.store_creation_enabled ? 'store_creation_enabled' : 'store_creation_disabled', entity_type: 'organization', entity_id: organization.id, after_data: { store_creation_enabled: organization.store_creation_enabled } });
       return response({ organization });
+    }
+    if (payload.action === 'delete_organization') {
+      const organizationId = String(payload.organizationId ?? '');
+      if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(organizationId)) {
+        return response({ error: 'Dados da rede inválidos.' }, 400);
+      }
+
+      const { data: organization, error: organizationError } = await adminClient
+        .from('organizations').select('id, name').eq('id', organizationId).maybeSingle();
+      if (organizationError || !organization) return response({ error: 'Rede não encontrada.' }, 404);
+
+      const [{ data: organizationMembers, error: organizationMembersError }, { data: stores, error: storesError }] = await Promise.all([
+        adminClient.from('organization_memberships').select('user_id').eq('organization_id', organizationId),
+        adminClient.from('stores').select('id').eq('organization_id', organizationId),
+      ]);
+      if (organizationMembersError || storesError) throw new Error('Não foi possível preparar a exclusão da rede.');
+
+      const storeIds = (stores ?? []).map((store) => store.id);
+      let storeMembers: { user_id: string }[] = [];
+      if (storeIds.length) {
+        const { data, error } = await adminClient.from('store_memberships').select('user_id').in('store_id', storeIds);
+        if (error) throw new Error('Não foi possível preparar a exclusão das filiais.');
+        storeMembers = data ?? [];
+      }
+      const candidateUserIds = [...new Set([
+        ...(organizationMembers ?? []).map((member) => member.user_id),
+        ...storeMembers.map((member) => member.user_id),
+      ].filter(Boolean))];
+
+      // Cascades remove stores, memberships, invitations, schedules and every operational record tied to this network.
+      const { error: deleteError } = await adminClient.from('organizations').delete().eq('id', organizationId);
+      if (deleteError) throw new Error('Não foi possível excluir a rede.');
+
+      if (!candidateUserIds.length) return response({ organization, deletedAuthUsers: 0, retainedAuthUsers: 0, failedAuthUsers: 0 });
+
+      // An account is removed only if it no longer has any relationship to another network and is not a platform administrator.
+      const [profilesResult, organizationMembershipsResult, storeMembershipsResult, pendingInvitesResult] = await Promise.all([
+        adminClient.from('profiles').select('id, is_platform_admin').in('id', candidateUserIds),
+        adminClient.from('organization_memberships').select('user_id').in('user_id', candidateUserIds),
+        adminClient.from('store_memberships').select('user_id').in('user_id', candidateUserIds),
+        adminClient.from('platform_invites').select('invited_user_id').eq('status', 'pending').in('invited_user_id', candidateUserIds),
+      ]);
+      if (profilesResult.error || organizationMembershipsResult.error || storeMembershipsResult.error || pendingInvitesResult.error) {
+        return response({ organization, deletedAuthUsers: 0, retainedAuthUsers: candidateUserIds.length, failedAuthUsers: candidateUserIds.length, warning: 'A rede foi excluída, mas não foi possível verificar as contas para liberar os e-mails.' });
+      }
+
+      const retainedUserIds = new Set<string>([
+        ...(profilesResult.data ?? []).filter((profile) => profile.is_platform_admin).map((profile) => profile.id),
+        ...(organizationMembershipsResult.data ?? []).map((membership) => membership.user_id),
+        ...(storeMembershipsResult.data ?? []).map((membership) => membership.user_id),
+        ...(pendingInvitesResult.data ?? []).map((invitation) => invitation.invited_user_id),
+      ]);
+      const eligibleUserIds = candidateUserIds.filter((candidateId) => !retainedUserIds.has(candidateId));
+      let deletedAuthUsers = 0;
+      let failedAuthUsers = 0;
+      for (const candidateId of eligibleUserIds) {
+        const { error } = await adminClient.auth.admin.deleteUser(candidateId);
+        if (error) failedAuthUsers += 1;
+        else deletedAuthUsers += 1;
+      }
+
+      return response({ organization, deletedAuthUsers, retainedAuthUsers: retainedUserIds.size, failedAuthUsers });
     }
     if (payload.action !== 'create_network_invitation') return response({ error: 'Ação inválida.' }, 400);
     const { name, slug, ownerName, ownerEmail } = payload.organization ?? {};
