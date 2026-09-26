@@ -58,7 +58,13 @@ Deno.serve(async (request) => {
     const { data: invitation, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { full_name: String(ownerName).trim(), must_set_password: true }, redirectTo,
     });
-    if (inviteError || !invitation.user) throw new Error(inviteError?.message || 'Não foi possível criar o convite.');
+    if (inviteError || !invitation.user) {
+      const details = inviteError?.message || '';
+      if (/already|registered|exists|duplicate/i.test(details)) {
+        return response({ error: 'Este e-mail já possui uma conta. Para criar uma nova rede por convite, use um e-mail que ainda não tenha cadastro.' }, 409);
+      }
+      throw new Error(details || 'Não foi possível criar o convite.');
+    }
 
     const invitedUser = invitation.user;
     const { error: invitationFlagError } = await adminClient.auth.admin.updateUserById(invitedUser.id, {

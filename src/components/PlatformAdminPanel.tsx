@@ -13,6 +13,17 @@ const managerEmails = (memberships: Membership[]) => memberships
   .map((profile) => profile?.email)
   .filter((email): email is string => Boolean(email));
 
+const getFunctionErrorMessage = async (requestError: unknown, fallback: string) => {
+  const context = requestError && typeof requestError === 'object' && 'context' in requestError
+    ? (requestError as { context?: unknown }).context
+    : undefined;
+  if (context instanceof Response) {
+    const body = await context.clone().json().catch(() => null) as { error?: unknown } | null;
+    if (typeof body?.error === 'string' && body.error.trim()) return body.error;
+  }
+  return requestError instanceof Error && requestError.message ? requestError.message : fallback;
+};
+
 export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [name, setName] = useState('');
@@ -43,7 +54,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
       setSuccess(`Criação de filiais ${organization.store_creation_enabled ? 'bloqueada' : 'liberada'} para ${organization.name}.`);
       await loadOrganizations();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Não foi possível alterar a permissão.');
+      setError(await getFunctionErrorMessage(requestError, 'Não foi possível alterar a permissão.'));
     } finally { setChangingOrganizationId(null); }
   };
 
@@ -59,7 +70,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
       setSuccess(`Rede ${organization.name} ${organization.active ? 'suspensa' : 'reativada'} com sucesso.`);
       await loadOrganizations();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Não foi possível alterar o status da rede.');
+      setError(await getFunctionErrorMessage(requestError, 'Não foi possível alterar o status da rede.'));
     } finally { setChangingOrganizationId(null); }
   };
 
@@ -86,7 +97,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
       setName(''); setSlug(''); setAdminName(''); setAdminEmail('');
       await loadOrganizations();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Não foi possível criar a rede e enviar o convite.');
+      setError(await getFunctionErrorMessage(requestError, 'Não foi possível criar a rede e enviar o convite.'));
     } finally { setSending(false); }
   };
 
