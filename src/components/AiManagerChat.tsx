@@ -232,11 +232,15 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
   };
   const deleteConversation = (id: string) => {
     if (conversations.length === 1) return;
+    const conversation = conversations.find((item) => item.id === id);
+    if (!conversation || !window.confirm(`Deseja excluir a conversa "${conversation.title}"? Esta ação não pode ser desfeita.`)) return;
     const remaining = conversations.filter((conversation) => conversation.id !== id); setConversations(remaining);
     if (id === activeConversationId) setActiveConversationId(remaining[0].id); setPendingProposal(null);
   };
   const confirmProposal = () => {
     if (!pendingProposal) return;
+    const deletions = pendingProposal.actions.filter((action) => action.type === 'delete_employee' || action.type === 'delete_shift');
+    if (deletions.length > 0 && !window.confirm(`Esta proposta da IA excluirá ${deletions.length} funcionário(s) ou turno(s) desta filial. Deseja continuar?`)) return;
     const appliedCount = onConfirmActions(pendingProposal.actions);
     appendMessages([{ role: 'assistant', content: appliedCount > 0 ? `${appliedCount} alteração(ões) confirmada(s) e aplicada(s) no aplicativo.` : 'A proposta não pôde ser aplicada porque os dados não eram mais válidos.' }]);
     setPendingProposal(null);

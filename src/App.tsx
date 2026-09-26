@@ -920,6 +920,8 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
 
   const handleDeleteEmployee = (id: string) => {
     if (employees.length <= 1) return;
+    const employee = employees.find((candidate) => candidate.id === id);
+    if (!employee || !window.confirm(`Deseja excluir o funcionário "${employee.name}" desta filial? Esta ação não pode ser desfeita.`)) return;
     setEmployees((prev) => prev.filter((e) => e.id !== id));
   };
 
@@ -945,11 +947,14 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
 
   const handleDeleteShift = (id: string) => {
     if (SYSTEM_SHIFT_IDS.has(id)) return;
+    const shift = shifts.find((candidate) => candidate.id === id);
+    if (!shift) return;
     if ((Object.values(schedulesMap) as MonthSchedule[]).some((schedule) => Object.values(schedule.assignments).includes(id))) {
       window.alert('Este turno já aparece em uma escala. Altere as atribuições antes de excluí-lo.');
       return;
     }
     if (shifts.length <= 1) return;
+    if (!window.confirm(`Deseja excluir o turno "${shift.name}" desta filial? Esta ação não pode ser desfeita.`)) return;
     setShifts((prev) => prev.filter((s) => s.id !== id));
   };
 
