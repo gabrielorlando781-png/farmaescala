@@ -82,7 +82,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
     color: '#0284c7',
     active: true,
     hireDate: new Date().toISOString().split('T')[0],
-    preferredShiftId: 'shift_manha',
+    preferredShiftId: undefined,
     notes: '',
   });
 
@@ -100,7 +100,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
       color: '#0284c7',
       active: true,
       hireDate: new Date().toISOString().split('T')[0],
-      preferredShiftId: 'shift_manha',
+      preferredShiftId: undefined,
       notes: '',
     });
     setIsModalOpen(true);
@@ -138,7 +138,8 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
       color: formData.color || '#0284c7',
       active: formData.active ?? true,
       hireDate: formData.hireDate || new Date().toISOString().split('T')[0],
-      preferredShiftId: formData.preferredShiftId || 'shift_manha',
+      preferredShiftId: formData.preferredShiftId && shifts.some((shift) => shift.id === formData.preferredShiftId && !shift.isDayOff)
+        ? formData.preferredShiftId : undefined,
       unavailableDays: formData.unavailableDays ?? [],
       preferredDaysOff: formData.preferredDaysOff ?? [],
       notes: formData.notes?.trim() || '',

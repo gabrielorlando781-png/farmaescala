@@ -34,6 +34,7 @@ import { AutoScheduleModal } from './components/AutoScheduleModal';
 import { PharmacySettingsModal } from './components/PharmacySettingsModal';
 import { AiManagerChat } from './components/AiManagerChat';
 import { getScheduleViewMode, isCompactScheduleMode } from './utils/scheduleViewMode';
+import { normalizeStoreShifts, SYSTEM_SHIFT_IDS } from './utils/shiftDefaults';
 import { AuthScreen } from './components/AuthScreen';
 import { PlatformAdminPanel } from './components/PlatformAdminPanel';
 import { StoreManagerPanel } from './components/StoreManagerPanel';
@@ -188,22 +189,25 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
       if (storeLoadRequest.current !== requestId) return;
       if (error) { console.error('Store data lookup error:', error); return; }
       if (data) {
-        setEmployees((data.employees as PersistedEmployee[]).map(normalizeEmployee));
-        setShifts(data.shifts as ShiftType[]);
+        const storedSchedules = data.schedules as Record<string, MonthSchedule>;
+        const normalized = normalizeStoreShifts(data.shifts as ShiftType[], (data.employees as PersistedEmployee[]).map(normalizeEmployee), storedSchedules);
+        setEmployees(normalized.employees);
+        setShifts(normalized.shifts);
         setSettings(normalizeSettings(data.settings as PharmacySettings));
-        setSchedulesMap(data.schedules as Record<string, MonthSchedule>);
+        setSchedulesMap(storedSchedules);
       } else {
         const migrationKey = `farma_store_data_migrated_${user.id}`;
         const migrateLegacyData = !localStorage.getItem(migrationKey);
         const seed = migrateLegacyData
           ? legacyStoreData.current
           : { employees: [] as Employee[], shifts: INITIAL_SHIFTS, settings: INITIAL_PHARMACY_SETTINGS, schedulesMap: { [emptySchedule.id]: emptySchedule } };
-        const { error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees: seed.employees, shifts: seed.shifts, settings: seed.settings, schedules: seed.schedulesMap, updated_by: user.id });
+        const normalizedSeed = normalizeStoreShifts(seed.shifts, seed.employees, seed.schedulesMap);
+        const { error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees: normalizedSeed.employees, shifts: normalizedSeed.shifts, settings: seed.settings, schedules: seed.schedulesMap, updated_by: user.id });
         if (createError) console.error('Store data migration error:', createError);
         else {
           localStorage.setItem(migrationKey, 'true');
-          setEmployees(seed.employees);
-          setShifts(seed.shifts);
+          setEmployees(normalizedSeed.employees);
+          setShifts(normalizedSeed.shifts);
           setSettings(normalizeSettings(seed.settings));
           setSchedulesMap(seed.schedulesMap);
         }
@@ -333,6 +337,13 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   ) => {
     const emp = employees.find((e) => e.id === employeeId);
     if (!emp) return;
+    const workShiftId = shifts.find((shift) => shift.id === emp.preferredShiftId && !shift.isDayOff)?.id
+      ?? shifts.find((shift) => !shift.isDayOff)?.id;
+    if (pattern !== 'clear' && !workShiftId) {
+      window.alert('Cadastre um turno de trabalho antes de preencher a escala.');
+      setActiveTab('turnos');
+      return;
+    }
 
     const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
     const updatedAssignments = { ...currentSchedule.assignments };
@@ -348,16 +359,16 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         if (dayOfWeek === 0) {
           updatedAssignments[key] = 'shift_folga';
         } else {
-          updatedAssignments[key] = emp.preferredShiftId || 'shift_manha';
+          updatedAssignments[key] = workShiftId!;
         }
       } else if (pattern === 'alternating_weekends') {
         const sundayIndex = Math.floor((day - 1) / 7);
         if (dayOfWeek === 0) {
-          updatedAssignments[key] = sundayIndex % 2 === 0 ? emp.preferredShiftId || 'shift_manha' : 'shift_folga';
+          updatedAssignments[key] = sundayIndex % 2 === 0 ? workShiftId! : 'shift_folga';
         } else if (dayOfWeek === 6 && sundayIndex % 2 === 0) {
           updatedAssignments[key] = 'shift_folga';
         } else {
-          updatedAssignments[key] = emp.preferredShiftId || 'shift_manha';
+          updatedAssignments[key] = workShiftId!;
         }
       }
     }
@@ -737,6 +748,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         if (
           typeof patch.name === 'string' && patch.name.trim() &&
           typeof patch.code === 'string' && patch.code.trim() &&
+          !nextShifts.some((shift) => shift.code.toUpperCase() === String(patch.code).trim().toUpperCase()) &&
           typeof patch.startTime === 'string' && timePattern.test(patch.startTime) &&
           typeof patch.endTime === 'string' && timePattern.test(patch.endTime) &&
           typeof patch.breakMinutes === 'number' && patch.breakMinutes >= 0 &&
@@ -765,6 +777,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
       }
 
       if (action.type === 'update_shift' && action.shiftId) {
+        if (SYSTEM_SHIFT_IDS.has(action.shiftId)) return;
         const patch = parsePatch(action.patchJson);
         const shiftFields = new Set([
           'name', 'code', 'startTime', 'endTime', 'breakMinutes', 'durationHours',
@@ -793,8 +806,9 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
 
       if (action.type === 'delete_shift' && action.shiftId) {
         const shift = nextShifts.find((candidate) => candidate.id === action.shiftId);
-        const isAssigned = Object.values(nextSchedule.assignments).includes(action.shiftId);
-        if (shift && !shift.isDayOff && !isAssigned && nextShifts.length > 1) {
+        const isAssigned = Object.values(nextSchedule.assignments).includes(action.shiftId)
+          || (Object.values(schedulesMap) as MonthSchedule[]).some((schedule) => Object.values(schedule.assignments).includes(action.shiftId!));
+        if (shift && !SYSTEM_SHIFT_IDS.has(shift.id) && !isAssigned && nextShifts.length > 1) {
           nextShifts = nextShifts.filter((candidate) => candidate.id !== action.shiftId);
           appliedCount += 1;
         }
@@ -914,6 +928,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
 
   // Shift CRUD
   const handleSaveShift = (shift: ShiftType) => {
+    if (SYSTEM_SHIFT_IDS.has(shift.id)) return;
     setShifts((prev) => {
       const idx = prev.findIndex((s) => s.id === shift.id);
       if (idx >= 0) {
@@ -926,6 +941,11 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   };
 
   const handleDeleteShift = (id: string) => {
+    if (SYSTEM_SHIFT_IDS.has(id)) return;
+    if ((Object.values(schedulesMap) as MonthSchedule[]).some((schedule) => Object.values(schedule.assignments).includes(id))) {
+      window.alert('Este turno já aparece em uma escala. Altere as atribuições antes de excluí-lo.');
+      return;
+    }
     if (shifts.length <= 1) return;
     setShifts((prev) => prev.filter((s) => s.id !== id));
   };

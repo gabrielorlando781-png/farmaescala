@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShiftType } from '../types';
+import { SYSTEM_SHIFT_IDS } from '../utils/shiftDefaults';
 import { 
   Plus, 
   Clock, 
@@ -84,6 +85,10 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.trim() || !formData.code?.trim()) return;
+    if (shifts.some((shift) => shift.id !== editingShift?.id && shift.code.toUpperCase() === formData.code!.trim().toUpperCase())) {
+      window.alert('Esta sigla já está em uso. Escolha outra para o novo turno.');
+      return;
+    }
 
     const duration = formData.isDayOff
       ? 0
@@ -119,7 +124,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
         <div>
           <h3 className="font-bold text-slate-800 text-xs">Turnos & Horários da Farmácia</h3>
           <p className="text-[11px] text-slate-500">
-            Cadastre os horários de entrada, saída e intervalos utilizados na escala
+            Folga, férias, atestado e falta já estão disponíveis. Cadastre os horários reais de trabalho desta filial.
           </p>
         </div>
 
@@ -131,6 +136,8 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
           <span>Novo Turno</span>
         </button>
       </div>
+
+      <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-900">Os quatro registros de ausência não são turnos de trabalho. Eles não somam horas e ficam protegidos para manter a escala consistente. Para gerar ou preencher uma escala, crie ao menos um turno de trabalho.</p>
 
       {/* Shifts Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -150,20 +157,20 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                   <div>
                     <h4 className="font-bold text-slate-800 text-xs">{shift.name}</h4>
                     <span className="text-[10px] text-slate-400">
-                      {shift.isDayOff ? 'Folga / Sem horas' : `${shift.durationHours}h úteis`}
+                      {shift.isDayOff ? 'Ausência · sem horas' : `${shift.durationHours}h úteis`}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <button
+                  {!shift.isDayOff && <button
                     onClick={() => handleOpenEdit(shift)}
                     className="p-1 text-slate-400 hover:text-sky-700 rounded-lg hover:bg-slate-100 cursor-pointer"
                     title="Editar"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  {shift.id !== 'shift_folga' && (
+                  </button>}
+                  {!SYSTEM_SHIFT_IDS.has(shift.id) && (
                     <button
                       onClick={() => onDeleteShift(shift.id)}
                       className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer"
@@ -278,20 +285,6 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                     className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-sky-500 font-bold uppercase"
                   />
                 </div>
-              </div>
-
-              {/* Day off toggle */}
-              <div className="flex items-center gap-2 py-1">
-                <input
-                  type="checkbox"
-                  id="isDayOff"
-                  checked={formData.isDayOff}
-                  onChange={(e) => setFormData({ ...formData, isDayOff: e.target.checked })}
-                  className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
-                />
-                <label htmlFor="isDayOff" className="text-xs font-semibold text-slate-700 cursor-pointer">
-                  Este turno representa Folga, Férias ou Afastamento
-                </label>
               </div>
 
               {!formData.isDayOff && (

@@ -1,17 +1,18 @@
 import React, { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, ShieldCheck, Store } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, PauseCircle, PlayCircle, Plus, RefreshCw, ShieldCheck, Store, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type ProfileContact = { full_name: string | null; email: string | null };
-type Membership = { role: string; profiles: ProfileContact | ProfileContact[] | null };
+type Membership = { role: string; active: boolean; profiles: ProfileContact | ProfileContact[] | null };
 type StoreRecord = { id: string; name: string; code: string; active: boolean; store_memberships: Membership[] };
 type Organization = { id: string; name: string; slug: string; active: boolean; store_creation_enabled: boolean; created_at: string; stores: StoreRecord[]; organization_memberships: Membership[] };
+type PlatformMetrics = { networks: number; activeNetworks: number; stores: number; activeStores: number; storeManagers: number; networkOwners: number };
 
 const managerEmails = (memberships: Membership[]) => memberships
-  .filter((membership) => ['network_owner', 'network_admin', 'store_manager'].includes(membership.role))
+  .filter((membership) => membership.active && ['network_owner', 'network_admin', 'store_manager'].includes(membership.role))
   .flatMap((membership) => Array.isArray(membership.profiles) ? membership.profiles : [membership.profiles])
-  .map((profile) => profile?.email)
-  .filter((email): email is string => Boolean(email));
+  .map((profile) => [profile?.full_name, profile?.email].filter(Boolean).join(' · '))
+  .filter(Boolean);
 
 const getFunctionErrorMessage = async (requestError: unknown, fallback: string) => {
   const context = requestError && typeof requestError === 'object' && 'context' in requestError
@@ -27,6 +28,9 @@ const getFunctionErrorMessage = async (requestError: unknown, fallback: string) 
 
 export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
+  const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [adminName, setAdminName] = useState('');
@@ -38,9 +42,16 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
 
   const loadOrganizations = async () => {
     if (!supabase) return;
-    const { data, error: listError } = await supabase.from('organizations').select('id, name, slug, active, store_creation_enabled, created_at, organization_memberships (role, profiles (full_name, email)), stores (id, name, code, active, store_memberships (role, profiles (full_name, email)))').order('created_at', { ascending: false });
+    setRefreshing(true);
+    const [{ data, error: listError }, { data: overview, error: overviewError }] = await Promise.all([
+      supabase.from('organizations').select('id, name, slug, active, store_creation_enabled, created_at, organization_memberships (role, active, profiles (full_name, email)), stores (id, name, code, active, store_memberships (role, active, profiles (full_name, email)))').order('created_at', { ascending: false }),
+      supabase.rpc('platform_admin_metrics'),
+    ]);
     if (listError) setError('Não foi possível carregar as redes.');
     else setOrganizations((data ?? []) as unknown as Organization[]);
+    if (overviewError) setError('Não foi possível carregar os indicadores da plataforma.');
+    else setMetrics(overview as PlatformMetrics);
+    setRefreshing(false);
   };
 
   const changeStoreCreationPermission = async (organization: Organization) => {
@@ -77,6 +88,14 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
 
   useEffect(() => { void loadOrganizations(); }, []);
 
+  const visibleOrganizations = organizations.filter((organization) => {
+    const query = search.trim().toLowerCase();
+    return !query || [organization.name, organization.slug,
+      ...managerEmails(organization.organization_memberships),
+      ...organization.stores.flatMap((store) => [store.name, store.code, ...managerEmails(store.store_memberships)]),
+    ].some((value) => value.toLowerCase().includes(query));
+  });
+
   const updateName = (value: string) => {
     setName(value);
     if (!slug || slug === name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')) {
@@ -112,6 +131,15 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
         <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">Crie redes somente por convite. O destinatário receberá um e-mail seguro para definir a senha; não existe cadastro público.</p>
       </section>
 
+      <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          ['Redes', metrics?.networks, `${metrics?.activeNetworks ?? '—'} ativas`, Building2],
+          ['Filiais', metrics?.stores, `${metrics?.activeStores ?? '—'} ativas`, Store],
+          ['Gerentes de filial', metrics?.storeManagers, 'pessoas com acesso ativo', Users],
+          ['Responsáveis de rede', metrics?.networkOwners, 'pessoas com acesso ativo', ShieldCheck],
+        ].map(([label, value, detail, Icon]) => <div key={String(label)} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Icon className="h-4 w-4 text-sky-600" />{label as string}</div><p className="mt-2 text-3xl font-bold text-slate-900">{value ?? '—'}</p><p className="mt-1 text-xs text-slate-500">{detail as string}</p></div>)}
+      </section>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-center gap-2"><Plus className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Criar rede e convidar responsável</h2></div>
@@ -126,7 +154,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
           </form>
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes e filiais</h2></div><div className="mt-5 space-y-3">{organizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede cadastrada ainda.</p> : organizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug}</p><p className="mt-1 text-xs text-slate-600">Responsável: {managerEmails(organization.organization_memberships).join(', ') || 'Sem responsável'}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${organization.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{organization.active ? '● Ativa' : '● Suspensa'}</span></div><div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="flex items-center gap-1.5 text-xs font-bold text-slate-700"><Store className="h-3.5 w-3.5 text-sky-600" />{organization.stores.length} filial(is)</p>{organization.stores.length > 0 && <div className="mt-2 space-y-2">{organization.stores.map((store) => <p key={store.id} className="text-xs leading-5 text-slate-500"><span className="font-semibold text-slate-700">{store.name} ({store.code})</span><br />Gerente: {managerEmails(store.store_memberships).join(', ') || 'Sem gerente atribuído'}</p>)}</div>}</div><div className="mt-4 flex flex-wrap gap-2"><button disabled={changingOrganizationId === organization.id} onClick={() => void changeOrganizationStatus(organization)} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.active ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{organization.active ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}{organization.active ? 'Suspender acesso' : 'Reativar acesso'}</button><button disabled={changingOrganizationId === organization.id || !organization.active} onClick={() => void changeStoreCreationPermission(organization)} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.store_creation_enabled ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}>{organization.store_creation_enabled ? 'Bloquear criação de filiais' : 'Liberar criação de filiais'}</button></div></div>)}</div></section>
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Building2 className="h-5 w-5 text-sky-600" /><h2 className="text-lg font-bold text-slate-900">Redes e filiais</h2></div><button type="button" onClick={() => void loadOrganizations()} disabled={refreshing} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="Atualizar dados" aria-label="Atualizar dados"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /></button></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar rede, filial ou gerente" className="mt-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500" /><p className="mt-2 text-xs text-slate-500">{visibleOrganizations.length} rede(s) na lista. Indicadores acima consideram toda a plataforma.</p><div className="mt-5 space-y-3">{visibleOrganizations.length === 0 ? <p className="text-sm text-slate-500">Nenhuma rede encontrada.</p> : visibleOrganizations.map((organization) => <div key={organization.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800">{organization.name}</p><p className="mt-1 text-xs text-slate-500">{organization.slug}</p><p className="mt-1 text-xs text-slate-600">Responsável: {managerEmails(organization.organization_memberships).join(', ') || 'Sem responsável'}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${organization.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{organization.active ? '● Ativa' : '● Suspensa'}</span></div><div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="flex items-center gap-1.5 text-xs font-bold text-slate-700"><Store className="h-3.5 w-3.5 text-sky-600" />{organization.stores.length} filial(is) · {organization.stores.filter((store) => store.active).length} ativa(s)</p>{organization.stores.length > 0 && <div className="mt-2 space-y-2">{organization.stores.map((store) => <p key={store.id} className="text-xs leading-5 text-slate-500"><span className="font-semibold text-slate-700">{store.name} ({store.code}) · {store.active ? 'Ativa' : 'Inativa'}</span><br />Gerente: {managerEmails(store.store_memberships).join(', ') || 'Sem gerente atribuído'}</p>)}</div>}</div><div className="mt-4 flex flex-wrap gap-2"><button disabled={changingOrganizationId === organization.id} onClick={() => void changeOrganizationStatus(organization)} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.active ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{organization.active ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}{organization.active ? 'Suspender acesso' : 'Reativar acesso'}</button><button disabled={changingOrganizationId === organization.id || !organization.active} onClick={() => void changeStoreCreationPermission(organization)} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-60 ${organization.store_creation_enabled ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}>{organization.store_creation_enabled ? 'Bloquear criação de filiais' : 'Liberar criação de filiais'}</button></div></div>)}</div></section>
       </div>
     </div>
   </main>;

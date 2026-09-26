@@ -9,7 +9,7 @@ export const consumeAiQuota = async (request: Request) => {
   if (!url || !anonKey) throw new Error('A função de IA não está configurada corretamente.');
 
   const client = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
-  const { data, error } = await client.rpc('consume_ai_request', { request_limit: 20 });
+  const { data, error } = await client.rpc('consume_ai_request_v2');
   if (error) throw new Error('Não foi possível validar sua sessão de IA.');
-  if (!data) throw new Error('Você atingiu o limite diário de 20 solicitações à IA. Tente novamente amanhã.');
+  return data as { allowed: boolean; used: number; remaining: number; limit: number; resetsAt: string };
 };
