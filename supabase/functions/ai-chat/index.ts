@@ -11,6 +11,7 @@ REGRA CRÍTICA: quando o gestor pedir uma alteração e os dados necessários es
 Cada item de actions deve usar EXATAMENTE uma das estruturas abaixo. patchJson é sempre uma STRING que contém JSON válido (não um objeto):
 - Criar funcionário: {"type":"add_employee","patchJson":"{\\"name\\":\\"Ana Souza\\",\\"role\\":\\"balconista\\",\\"contractType\\":\\"escala_5x2\\",\\"weeklyHoursTarget\\":44}"}. role só pode ser farmaceutico, balconista, caixa, dermoconsultor, estoquista ou gerente. contractType pode ser clt_44h, escala_12x36, escala_6x1, escala_5x2, clt_40h ou estagio_30h.
 - Editar/desativar/excluir funcionário: {"type":"update_employee","employeeId":"ID","patchJson":"{\\"phone\\":\\"...\\"}"}; {"type":"toggle_employee","employeeId":"ID"}; {"type":"delete_employee","employeeId":"ID"}.
+- Regra fixa de trabalho do funcionário: quando o gestor disser que alguém "não trabalha", "não pode trabalhar" ou "fica indisponível" em um DIA DA SEMANA recorrente, atualize obrigatoriamente o cadastro: {"type":"update_employee","employeeId":"ID","patchJson":"{\\"unavailableDays\\":[6]}"}. Os números são 0=domingo, 1=segunda, 2=terça, 3=quarta, 4=quinta, 5=sexta e 6=sábado. Isso marca o dia em "Dias em que não trabalha" e impede a escala automática de escalar a pessoa nesse dia. Não use set_assignment ou register_absence para essa regra recorrente. Se o pedido for uma DATA específica, use register_absence com kind folga.
 - Definir turno em um dia: {"type":"set_assignment","employeeId":"ID","date":"YYYY-MM-DD","shiftId":"ID_DO_TURNO"}.
 - Definir turno em intervalo: {"type":"set_assignment_range","employeeId":"ID","date":"INÍCIO","targetDate":"FIM","shiftId":"ID_DO_TURNO"}.
 - Registrar férias, atestado, falta ou folga: {"type":"register_absence","employeeId":"ID","date":"INÍCIO","targetDate":"FIM","patchJson":"{\\"kind\\":\\"ferias\\",\\"note\\":\\"opcional\\"}"}. kind só pode ser ferias, atestado, falta ou folga. Para apenas um dia, repita a mesma data em date e targetDate.
@@ -31,6 +32,33 @@ const actionTypes = new Set([
 
 const asRecord = (value: unknown): JsonRecord =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
+
+const weekdayNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 6) return value;
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const weekdays: Record<string, number> = {
+    domingo: 0, segunda: 1, 'segunda-feira': 1, terca: 2, 'terca-feira': 2,
+    quarta: 3, 'quarta-feira': 3, quinta: 4, 'quinta-feira': 4, sexta: 5,
+    'sexta-feira': 5, sabado: 6,
+  };
+  return weekdays[normalized];
+};
+
+const normalizeEmployeePatch = (value: JsonRecord): JsonRecord => {
+  const patch = { ...value };
+  const unavailable = patch.unavailableDays ?? patch.unavailable_days ?? patch.daysUnavailable ?? patch.daysNotWorking ?? patch.diasIndisponiveis;
+  if (unavailable !== undefined) {
+    const values = Array.isArray(unavailable) ? unavailable : [unavailable];
+    const days = values.map(weekdayNumber).filter((day): day is number => day !== undefined);
+    if (days.length) patch.unavailableDays = [...new Set(days)].sort((a, b) => a - b);
+  }
+  delete patch.unavailable_days;
+  delete patch.daysUnavailable;
+  delete patch.daysNotWorking;
+  delete patch.diasIndisponiveis;
+  return patch;
+};
 
 const normalizeDate = (value: unknown, context: JsonRecord): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -62,9 +90,16 @@ const normalizeAction = (rawAction: unknown, context: JsonRecord): JsonRecord | 
     type === 'add_employee' ? raw.employee : undefined
   ) ?? (type === 'register_absence' ? raw.absence : undefined);
   if (typeof patch === 'string') {
-    try { JSON.parse(patch); result.patchJson = patch; } catch { /* Invalid patches are discarded. */ }
+    try {
+      const parsedPatch = asRecord(JSON.parse(patch));
+      result.patchJson = JSON.stringify(type === 'update_employee' || type === 'add_employee'
+        ? normalizeEmployeePatch(parsedPatch)
+        : parsedPatch);
+    } catch { /* Invalid patches are discarded. */ }
   } else if (patch && typeof patch === 'object' && !Array.isArray(patch)) {
-    result.patchJson = JSON.stringify(patch);
+    result.patchJson = JSON.stringify(type === 'update_employee' || type === 'add_employee'
+      ? normalizeEmployeePatch(patch as JsonRecord)
+      : patch);
   }
 
   // The application needs both fields even for a one-day absence.

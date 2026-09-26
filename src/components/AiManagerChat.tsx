@@ -42,7 +42,9 @@ const describeAction = (action: AiAction) => {
     case 'swap_assignments': return `Trocar turnos entre ${action.date} e ${action.targetDate}`;
     case 'rebalance_schedule': return 'Reorganizar a escala atual';
     case 'generate_5x2': return 'Gerar escala 5x2';
-    case 'update_employee': return 'Atualizar funcionário';
+    case 'update_employee': return Array.isArray(patch.unavailableDays)
+      ? 'Atualizar os dias em que o funcionário não trabalha'
+      : 'Atualizar funcionário';
     case 'toggle_employee': return 'Ativar ou desativar funcionário';
     case 'delete_employee': return 'Excluir funcionário';
     case 'add_shift': return `Criar turno: ${typeof patch.name === 'string' ? patch.name : 'novo turno'}`;
