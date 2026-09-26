@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import confetti from 'canvas-confetti';
 import { 
@@ -110,6 +110,8 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   const [isAutoScheduleOpen, setIsAutoScheduleOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loadedStoreId, setLoadedStoreId] = useState<string | null>(null);
+  const legacyStoreData = useRef({ employees, shifts, settings, schedulesMap });
+  const storeLoadRequest = useRef(0);
 
   // Remove the legacy fictitious dataset even when Fast Refresh preserved the
   // previous React state while this version was being installed.
@@ -154,11 +156,17 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
 
   useEffect(() => {
     if (!supabase || !selectedStoreId) return;
-    let active = true;
+    const requestId = ++storeLoadRequest.current;
+    const emptySchedule = generateInitialSchedule(currentYear, currentMonth);
+    // Limpa imediatamente o estado anterior. A tela nunca reutiliza dados de outra filial.
     setLoadedStoreId(null);
+    setEmployees([]);
+    setShifts(INITIAL_SHIFTS);
+    setSettings(INITIAL_PHARMACY_SETTINGS);
+    setSchedulesMap({ [emptySchedule.id]: emptySchedule });
     void (async () => {
       const { data, error } = await supabase.from('store_operational_data').select('employees, shifts, settings, schedules').eq('store_id', selectedStoreId).maybeSingle();
-      if (!active) return;
+      if (storeLoadRequest.current !== requestId) return;
       if (error) { console.error('Store data lookup error:', error); return; }
       if (data) {
         setEmployees((data.employees as PersistedEmployee[]).map(normalizeEmployee));
@@ -166,13 +174,24 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         setSettings(normalizeSettings(data.settings as PharmacySettings));
         setSchedulesMap(data.schedules as Record<string, MonthSchedule>);
       } else {
-        const { error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees, shifts, settings, schedules: schedulesMap, updated_by: user.id });
+        const migrationKey = `farma_store_data_migrated_${user.id}`;
+        const migrateLegacyData = !localStorage.getItem(migrationKey);
+        const seed = migrateLegacyData
+          ? legacyStoreData.current
+          : { employees: [] as Employee[], shifts: INITIAL_SHIFTS, settings: INITIAL_PHARMACY_SETTINGS, schedulesMap: { [emptySchedule.id]: emptySchedule } };
+        const { error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees: seed.employees, shifts: seed.shifts, settings: seed.settings, schedules: seed.schedulesMap, updated_by: user.id });
         if (createError) console.error('Store data migration error:', createError);
+        else {
+          localStorage.setItem(migrationKey, 'true');
+          setEmployees(seed.employees);
+          setShifts(seed.shifts);
+          setSettings(normalizeSettings(seed.settings));
+          setSchedulesMap(seed.schedulesMap);
+        }
       }
-      if (active) setLoadedStoreId(selectedStoreId);
+      if (storeLoadRequest.current === requestId) setLoadedStoreId(selectedStoreId);
     })();
-    return () => { active = false; };
-  }, [selectedStoreId]);
+  }, [selectedStoreId, user.id]);
 
   useEffect(() => {
     // Só persiste depois de confirmar que os dados exibidos pertencem à filial selecionada.
@@ -922,6 +941,8 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         selectedStoreId={selectedStoreId}
         onSelectStore={onSelectStore}
       />
+
+      {loadedStoreId !== selectedStoreId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"><div className="rounded-2xl bg-white px-6 py-4 text-sm font-bold text-slate-800 shadow-2xl">Carregando dados da filial selecionada...</div></div>}
 
       {/* Navigation Tabs */}
       <Navbar
