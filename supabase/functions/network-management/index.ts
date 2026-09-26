@@ -17,6 +17,8 @@ Deno.serve(async (request) => {
     const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return reply({ error: 'Sua sessão expirou. Entre novamente.' }, 401);
+    const { data: passwordReady, error: readinessError } = await userClient.rpc('is_account_ready');
+    if (readinessError || !passwordReady) return reply({ error: 'Defina sua senha antes de gerenciar a rede.' }, 403);
     const payload = await request.json() as Payload;
     if (payload.action !== 'invite_store_manager' || !payload.storeId || !String(payload.managerName ?? '').trim() || !/^\S+@\S+\.\S+$/.test(String(payload.managerEmail ?? '').trim())) return reply({ error: 'Confira os dados do gerente.' }, 400);
 

@@ -74,7 +74,6 @@ const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings =>
 };
 
 function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canManageStores, onOpenStores, stores, selectedStoreId, onSelectStore }: { user: User; onSignOut: () => void; isPlatformAdmin: boolean; onOpenPlatformAdmin: () => void; canManageStores: boolean; onOpenStores: () => void; stores: AccessibleStore[]; selectedStoreId: string; onSelectStore: (storeId: string) => void }) {
-  const storageKey = (name: string) => `${name}_${user.id}`;
   // Current Date State
   const now = new Date();
   const [currentYear, setCurrentYear] = useState<number>(now.getFullYear());
@@ -82,27 +81,10 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   const [activeTab, setActiveTab] = useState<ActiveTab>('escala');
 
   // Persistence State
-  const [employees, setEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem(storageKey('farma_employees_clean'));
-    if (!saved) return INITIAL_EMPLOYEES;
-    return (JSON.parse(saved) as PersistedEmployee[]).map(normalizeEmployee);
-  });
-
-  const [shifts, setShifts] = useState<ShiftType[]>(() => {
-    const saved = localStorage.getItem(storageKey('farma_shifts_clean'));
-    return saved ? JSON.parse(saved) : INITIAL_SHIFTS;
-  });
-
-  const [settings, setSettings] = useState<PharmacySettings>(() => {
-    const saved = localStorage.getItem(storageKey('farma_settings_clean'));
-    return saved ? normalizeSettings(JSON.parse(saved)) : INITIAL_PHARMACY_SETTINGS;
-  });
-
+  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  const [shifts, setShifts] = useState<ShiftType[]>(INITIAL_SHIFTS);
+  const [settings, setSettings] = useState<PharmacySettings>(INITIAL_PHARMACY_SETTINGS);
   const [schedulesMap, setSchedulesMap] = useState<Record<string, MonthSchedule>>(() => {
-    const saved = localStorage.getItem(storageKey('farma_schedules_clean'));
-    if (saved) {
-      return JSON.parse(saved);
-    }
     const initial = generateInitialSchedule(now.getFullYear(), now.getMonth() + 1);
     return { [initial.id]: initial };
   });
@@ -111,27 +93,58 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   const [isAutoScheduleOpen, setIsAutoScheduleOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loadedStoreId, setLoadedStoreId] = useState<string | null>(null);
-  const legacyStoreData = useRef({ employees, shifts, settings, schedulesMap });
   const storeLoadRequest = useRef(0);
   const storeSaveQueue = useRef(Promise.resolve());
+  const [saveError, setSaveError] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedSnapshot = useRef(new Map<string, string>());
+  const storeVersions = useRef(new Map<string, string>());
+  const pendingSaves = useRef(0);
   const latestStoreData = useRef({ storeId: null as string | null, employees, shifts, settings, schedulesMap });
   latestStoreData.current = { storeId: loadedStoreId, employees, shifts, settings, schedulesMap };
 
-  const enqueueStoreSave = (storeId: string, snapshot: { employees: Employee[]; shifts: ShiftType[]; settings: PharmacySettings; schedulesMap: Record<string, MonthSchedule> }) => {
-    if (!supabase) return;
+  const enqueueStoreSave = (storeId: string, snapshot: { employees: Employee[]; shifts: ShiftType[]; settings: PharmacySettings; schedulesMap: Record<string, MonthSchedule> }): Promise<void> => {
+    if (!supabase) return Promise.reject(new Error('Supabase indisponível.'));
     // Serializa as gravações: uma alteração antiga nunca chega ao banco depois da mais nova.
+    const serialized = JSON.stringify(snapshot);
+    if (lastSavedSnapshot.current.get(storeId) === serialized) return storeSaveQueue.current;
     storeSaveQueue.current = storeSaveQueue.current.catch(() => undefined).then(async () => {
-      const { error } = await supabase.from('store_operational_data').upsert({
-        store_id: storeId,
-        employees: snapshot.employees,
-        shifts: snapshot.shifts,
-        settings: snapshot.settings,
-        schedules: snapshot.schedulesMap,
-        updated_by: user.id,
-      });
-      if (error) console.error('Store data save error:', error);
+      if (lastSavedSnapshot.current.get(storeId) === serialized) return;
+      const version = storeVersions.current.get(storeId);
+      if (!version) throw new Error('A versão da filial ainda não foi carregada.');
+      pendingSaves.current++;
+      try {
+        const { data, error } = await supabase.from('store_operational_data').update({
+          employees: snapshot.employees,
+          shifts: snapshot.shifts,
+          settings: snapshot.settings,
+          schedules: snapshot.schedulesMap,
+          updated_by: user.id,
+        }).eq('store_id', storeId).eq('updated_at', version).select('updated_at').maybeSingle();
+        if (error || !data) {
+          console.error('Store data save error or concurrent update:', error);
+          setSaveError(true);
+          throw new Error('A filial foi alterada em outra sessão ou não foi possível salvar. Atualize a página após conferir seus dados.');
+        }
+        storeVersions.current.set(storeId, data.updated_at);
+        lastSavedSnapshot.current.set(storeId, serialized);
+        setSaveError(false);
+      } finally {
+        pendingSaves.current--;
+      }
     });
+    return storeSaveQueue.current;
   };
+
+  useEffect(() => {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (!saveTimer.current && pendingSaves.current === 0 && !saveError) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [saveError]);
 
   // Remove the legacy fictitious dataset even when Fast Refresh preserved the
   // previous React state while this version was being installed.
@@ -157,23 +170,6 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
     setEmployees(legacyEmployees.map(normalizeEmployee));
   }, [employees]);
 
-  // Legado local: preservado somente como fonte da primeira migração para a filial.
-  useEffect(() => {
-    localStorage.setItem(storageKey('farma_employees_clean'), JSON.stringify(employees));
-  }, [employees]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey('farma_shifts_clean'), JSON.stringify(shifts));
-  }, [shifts]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey('farma_settings_clean'), JSON.stringify(settings));
-  }, [settings]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey('farma_schedules_clean'), JSON.stringify(schedulesMap));
-  }, [schedulesMap]);
-
   useEffect(() => {
     if (!supabase || !selectedStoreId) return;
     const requestId = ++storeLoadRequest.current;
@@ -185,9 +181,9 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
     setSettings(INITIAL_PHARMACY_SETTINGS);
     setSchedulesMap({ [emptySchedule.id]: emptySchedule });
     void (async () => {
-      const { data, error } = await supabase.from('store_operational_data').select('employees, shifts, settings, schedules').eq('store_id', selectedStoreId).maybeSingle();
+      const { data, error } = await supabase.from('store_operational_data').select('employees, shifts, settings, schedules, updated_at').eq('store_id', selectedStoreId).maybeSingle();
       if (storeLoadRequest.current !== requestId) return;
-      if (error) { console.error('Store data lookup error:', error); return; }
+      if (error) { console.error('Store data lookup error:', error); setSaveError(true); return; }
       if (data) {
         const storedSchedules = data.schedules as Record<string, MonthSchedule>;
         const normalized = normalizeStoreShifts(data.shifts as ShiftType[], (data.employees as PersistedEmployee[]).map(normalizeEmployee), storedSchedules);
@@ -195,21 +191,21 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         setShifts(normalized.shifts);
         setSettings(normalizeSettings(data.settings as PharmacySettings));
         setSchedulesMap(storedSchedules);
+        storeVersions.current.set(selectedStoreId, data.updated_at);
+        lastSavedSnapshot.current.set(selectedStoreId, JSON.stringify({ employees: normalized.employees, shifts: normalized.shifts, settings: normalizeSettings(data.settings as PharmacySettings), schedulesMap: storedSchedules }));
       } else {
-        const migrationKey = `farma_store_data_migrated_${user.id}`;
-        const migrateLegacyData = !localStorage.getItem(migrationKey);
-        const seed = migrateLegacyData
-          ? legacyStoreData.current
-          : { employees: [] as Employee[], shifts: INITIAL_SHIFTS, settings: INITIAL_PHARMACY_SETTINGS, schedulesMap: { [emptySchedule.id]: emptySchedule } };
+        // Never copy user-wide browser data into an arbitrary store.
+        const seed = { employees: [] as Employee[], shifts: INITIAL_SHIFTS, settings: INITIAL_PHARMACY_SETTINGS, schedulesMap: { [emptySchedule.id]: emptySchedule } };
         const normalizedSeed = normalizeStoreShifts(seed.shifts, seed.employees, seed.schedulesMap);
-        const { error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees: normalizedSeed.employees, shifts: normalizedSeed.shifts, settings: seed.settings, schedules: seed.schedulesMap, updated_by: user.id });
-        if (createError) console.error('Store data migration error:', createError);
+        const { data: createdData, error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees: normalizedSeed.employees, shifts: normalizedSeed.shifts, settings: seed.settings, schedules: seed.schedulesMap, updated_by: user.id }).select('updated_at').single();
+        if (createError) { console.error('Store data creation error:', createError); setSaveError(true); return; }
         else {
-          localStorage.setItem(migrationKey, 'true');
           setEmployees(normalizedSeed.employees);
           setShifts(normalizedSeed.shifts);
           setSettings(normalizeSettings(seed.settings));
           setSchedulesMap(seed.schedulesMap);
+          storeVersions.current.set(selectedStoreId, createdData.updated_at);
+          lastSavedSnapshot.current.set(selectedStoreId, JSON.stringify({ employees: normalizedSeed.employees, shifts: normalizedSeed.shifts, settings: normalizeSettings(seed.settings), schedulesMap: seed.schedulesMap }));
         }
       }
       if (storeLoadRequest.current === requestId) setLoadedStoreId(selectedStoreId);
@@ -220,14 +216,17 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
     // Só persiste depois de confirmar que os dados exibidos pertencem à filial selecionada.
     // Isso impede que uma troca de filial grave dados da filial anterior na nova.
     if (!supabase || !selectedStoreId || loadedStoreId !== selectedStoreId) return;
-    enqueueStoreSave(selectedStoreId, { employees, shifts, settings, schedulesMap });
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => { saveTimer.current = null; void enqueueStoreSave(selectedStoreId, { employees, shifts, settings, schedulesMap }).catch(() => undefined); }, 600);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [employees, shifts, settings, schedulesMap, selectedStoreId, loadedStoreId, user.id]);
 
   const handleSelectStore = (nextStoreId: string) => {
     // Grava o estado atual antes de iniciar a troca de filial, sem depender de timers.
     const snapshot = latestStoreData.current;
     if (snapshot.storeId && snapshot.storeId !== nextStoreId) {
-      enqueueStoreSave(snapshot.storeId, snapshot);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      void enqueueStoreSave(snapshot.storeId, snapshot).catch(() => undefined);
     }
     onSelectStore(nextStoreId);
   };
@@ -988,6 +987,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
       />
 
       {loadedStoreId !== selectedStoreId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"><div className="rounded-2xl bg-white px-6 py-4 text-sm font-bold text-slate-800 shadow-2xl">Carregando dados da filial selecionada...</div></div>}
+      {saveError && <div role="alert" className="fixed bottom-20 left-4 z-50 rounded-xl bg-rose-700 px-4 py-3 text-sm font-semibold text-white shadow-xl">Não foi possível salvar ou carregar os dados da filial. Verifique sua conexão antes de sair.</div>}
 
       {/* Navigation Tabs */}
       <Navbar
@@ -1121,13 +1121,16 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
       />
 
       <AiManagerChat
+        key={selectedStoreId}
+        storeId={selectedStoreId}
         userId={user.id}
         currentYear={currentYear}
         currentMonth={currentMonth}
-        employees={employees}
-        shifts={shifts}
-        settings={settings}
-        schedule={currentSchedule}
+        onBeforeAsk={() => {
+          if (loadedStoreId !== selectedStoreId) return Promise.reject(new Error('Aguarde o carregamento da filial.'));
+          if (saveTimer.current) clearTimeout(saveTimer.current);
+          return enqueueStoreSave(selectedStoreId, { employees, shifts, settings, schedulesMap });
+        }}
         onConfirmActions={handleConfirmAiActions}
       />
     </div>
@@ -1260,7 +1263,7 @@ export default function App() {
   }
 
   if (!isSupabaseConfigured) {
-    return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Autenticação ainda não configurada</h1><p className="mt-3 text-sm leading-6 text-slate-600">Adicione VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente do Render para liberar o login.</p></section></main>;
+    return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Autenticação ainda não configurada</h1><p className="mt-3 text-sm leading-6 text-slate-600">Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no ambiente de publicação do site para liberar o login.</p></section></main>;
   }
 
   const passwordSetupMode = invitationNeedsPassword && !invitationCompleted;

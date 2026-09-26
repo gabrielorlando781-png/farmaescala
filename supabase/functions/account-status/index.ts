@@ -13,6 +13,8 @@ Deno.serve(async (request) => {
     const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return Response.json({ error: 'Sua sessão expirou.' }, { status: 401, headers: corsHeaders });
+    const { data: passwordReady, error: readinessError } = await userClient.rpc('is_account_ready');
+    if (readinessError || !passwordReady) return Response.json({ error: 'Defina sua senha antes de acessar a plataforma.' }, { status: 403, headers: corsHeaders });
     const adminClient = createClient(url, serviceRoleKey);
     const { data: organizationMembership, error: organizationError } = await adminClient.from('organization_memberships').select('role, organizations (id, name, slug, active, store_creation_enabled, initial_setup_completed_at)').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
     if (organizationError) throw organizationError;

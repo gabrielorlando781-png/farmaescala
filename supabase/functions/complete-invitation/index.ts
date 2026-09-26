@@ -15,6 +15,8 @@ Deno.serve(async (request) => {
     const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return Response.json({ error: 'Sua sessão expirou. Abra novamente o convite.' }, { status: 401, headers: corsHeaders });
+    const { data: passwordReady, error: readinessError } = await userClient.rpc('is_account_ready');
+    if (readinessError || !passwordReady) return Response.json({ error: 'Defina sua senha antes de concluir o convite.' }, { status: 403, headers: corsHeaders });
     if (user.app_metadata?.invitation_completed) return Response.json({ ok: true }, { headers: corsHeaders });
 
     const adminClient = createClient(url, serviceRoleKey);

@@ -37,8 +37,11 @@ Deno.serve(async (request) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return response({ error: 'Sua sessão expirou. Entre novamente.' }, 401);
 
-    const { data: profile, error: profileError } = await userClient.from('profiles').select('is_platform_admin').eq('id', user.id).maybeSingle();
-    if (profileError || !profile?.is_platform_admin) return response({ error: 'Apenas o administrador da plataforma pode criar redes.' }, 403);
+    const [{ data: profile, error: profileError }, { data: passwordReady, error: readinessError }] = await Promise.all([
+      userClient.from('profiles').select('is_platform_admin').eq('id', user.id).maybeSingle(),
+      userClient.rpc('is_account_ready'),
+    ]);
+    if (profileError || readinessError || !passwordReady || !profile?.is_platform_admin) return response({ error: 'Apenas o administrador da plataforma pode criar redes.' }, 403);
 
     const payload = await request.json() as CreateInvitationPayload;
     const adminClient = createClient(url, serviceRoleKey);

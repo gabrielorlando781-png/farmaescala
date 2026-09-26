@@ -1,6 +1,8 @@
 node_modules/
 build/
 dist/
+.firebase/
+supabase/.temp/
 coverage/
 .DS_Store
 *.log

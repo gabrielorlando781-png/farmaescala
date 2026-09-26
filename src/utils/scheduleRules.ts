@@ -232,6 +232,10 @@ export function generateSmartSchedule(
   }
 
   const workingShiftIds = new Set(workingShifts.map((shift) => shift.id));
+  const workingShiftById = new Map(workingShifts.map((shift) => [shift.id, shift]));
+  const requiredShifts = workingShifts
+    .filter((shift) => (shift.minEmployeesPerShift ?? 0) > 0)
+    .sort((a, b) => Number(b.requiresPharmacist) - Number(a.requiresPharmacist));
   const shiftsByStart = [...workingShifts].sort((a, b) => a.startTime.localeCompare(b.startTime));
   const morningShift = shiftsByStart[0];
   const afternoonShift = [...workingShifts].sort((a, b) => b.endTime.localeCompare(a.endTime))[0];
@@ -357,6 +361,8 @@ export function generateSmartSchedule(
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const absoluteDay = Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
     const workingToday: Employee[] = [];
+    let workingPharmacists = 0;
+    let workingCashiers = 0;
 
     activeEmployees.forEach((employee) => {
       const phase = cyclePhase.get(employee.id) ?? 0;
@@ -372,10 +378,12 @@ export function generateSmartSchedule(
       }
 
       workingToday.push(employee);
+      if (isPharmacist(employee)) workingPharmacists++;
+      if (isCashier(employee)) workingCashiers++;
       const fallback = isPharmacist(employee)
-        ? (workingToday.filter(isPharmacist).length % 2 === 1 ? morningShift : afternoonShift)
+        ? (workingPharmacists % 2 === 1 ? morningShift : afternoonShift)
         : isCashier(employee)
-          ? (workingToday.filter(isCashier).length % 2 === 1 ? morningShift : afternoonShift)
+          ? (workingCashiers % 2 === 1 ? morningShift : afternoonShift)
           : middleShift;
       assignments[key] = preferredOrFallback(employee, fallback);
     });
@@ -392,12 +400,12 @@ export function generateSmartSchedule(
 
     // Balance working employees between shifts to honour the minimum coverage
     // configured by the manager. This never moves an employee's 5x2 rest day.
-    const assignedCount = (shiftId: string) => workingToday.filter(
-      (employee) => assignments[`${employee.id}_${dateStr}`] === shiftId
-    ).length;
-    const requiredShifts = workingShifts
-      .filter((shift) => (shift.minEmployeesPerShift ?? 0) > 0)
-      .sort((a, b) => Number(b.requiresPharmacist) - Number(a.requiresPharmacist));
+    const assignmentCounts = new Map<string, number>();
+    workingToday.forEach((employee) => {
+      const shiftId = assignments[`${employee.id}_${dateStr}`];
+      assignmentCounts.set(shiftId, (assignmentCounts.get(shiftId) ?? 0) + 1);
+    });
+    const assignedCount = (shiftId: string) => assignmentCounts.get(shiftId) ?? 0;
 
     for (const targetShift of requiredShifts) {
       const required = Math.max(0, Math.floor(targetShift.minEmployeesPerShift ?? 0));
@@ -405,7 +413,7 @@ export function generateSmartSchedule(
         const candidate = workingToday.find((employee) => {
           const currentShiftId = assignments[`${employee.id}_${dateStr}`];
           if (currentShiftId === targetShift.id) return false;
-          const currentShift = workingShifts.find((shift) => shift.id === currentShiftId);
+          const currentShift = workingShiftById.get(currentShiftId);
           const currentMinimum = currentShift?.minEmployeesPerShift ?? 0;
           if (assignedCount(currentShiftId) <= currentMinimum) return false;
           // Do not remove the pharmacist specifically placed to meet a CRF shift.
@@ -416,7 +424,10 @@ export function generateSmartSchedule(
         if (!candidate) {
           throw new Error(`Não há pessoas suficientes trabalhando em ${dateStr} para cumprir o mínimo de ${required} no turno ${targetShift.name}.`);
         }
+        const currentShiftId = assignments[`${candidate.id}_${dateStr}`];
         assignments[`${candidate.id}_${dateStr}`] = targetShift.id;
+        assignmentCounts.set(currentShiftId, assignedCount(currentShiftId) - 1);
+        assignmentCounts.set(targetShift.id, assignedCount(targetShift.id) + 1);
       }
     }
   }

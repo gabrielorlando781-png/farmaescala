@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
+import React, { useEffect, useRef, useState } from 'react';
 import { Bot, Check, FileSpreadsheet, FileUp, History, Loader2, MessageSquarePlus, Mic, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
-import { AiAction, AiProposal, Employee, MonthSchedule, PharmacySettings, ShiftType } from '../types';
+import { AiAction, AiProposal } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string; }
@@ -12,9 +11,9 @@ interface SavedConversation {
   messages: ChatMessage[]; importedSpreadsheet?: ImportedSpreadsheet;
 }
 interface AiManagerChatProps {
-  currentYear: number; currentMonth: number; employees: Employee[]; shifts: ShiftType[];
-  settings: PharmacySettings; schedule: MonthSchedule; onConfirmActions: (actions: AiAction[]) => number;
-  userId: string;
+  currentYear: number; currentMonth: number; storeId: string;
+  onConfirmActions: (actions: AiAction[]) => number;
+  onBeforeAsk: () => Promise<void>; userId: string;
 }
 
 const welcomeMessage: ChatMessage = { role: 'assistant', content: 'Olá! Posso consultar a equipe e a escala, analisar uma planilha existente e preparar alterações para sua confirmação.' };
@@ -24,12 +23,31 @@ const createConversation = (): SavedConversation => {
 };
 const readConversations = (storageKey: string): SavedConversation[] => {
   try {
-    const saved = localStorage.getItem(storageKey);
+    const saved = sessionStorage.getItem(storageKey);
     const parsed = saved ? JSON.parse(saved) as SavedConversation[] : [];
     return Array.isArray(parsed) && parsed.length ? parsed : [createConversation()];
   } catch { return [createConversation()]; }
 };
 const compactCell = (value: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
+const parseCsv = (source: string): string[][] => {
+  const rows: string[][] = [];
+  let row: string[] = []; let cell = ''; let quoted = false;
+  const header = source.split(/\r?\n/, 1)[0];
+  const delimiter = (header.match(/;/g)?.length ?? 0) > (header.match(/,/g)?.length ?? 0) ? ';' : ',';
+  for (let index = 0; index < source.length; index++) {
+    const char = source[index];
+    if (char === '"' && quoted && source[index + 1] === '"') { cell += '"'; index++; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === delimiter && !quoted) { row.push(cell); cell = ''; }
+    else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && source[index + 1] === '\n') index++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+      if (rows.length >= 80) break;
+    } else cell += char;
+  }
+  if (row.length || cell) { row.push(cell); rows.push(row); }
+  return rows;
+};
 const describeAction = (action: AiAction) => {
   const patch = (() => {
     try { return action.patchJson ? JSON.parse(action.patchJson) as Record<string, unknown> : {}; } catch { return {}; }
@@ -57,17 +75,19 @@ const describeAction = (action: AiAction) => {
 };
 const parseSpreadsheet = async (file: File): Promise<ImportedSpreadsheet> => {
   if (file.size > 3 * 1024 * 1024) throw new Error('A planilha deve ter no máximo 3 MB para análise rápida.');
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
-  const sheets = workbook.SheetNames.slice(0, 3).map((name) => {
-    const rawRows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header: 1, defval: '', blankrows: false });
-    return { name, rows: rawRows.slice(0, 80).map((row) => row.slice(0, 16).map(compactCell)).filter((row) => row.some(Boolean)) };
+  if (!/\.(xlsx|csv)$/i.test(file.name)) throw new Error('Use uma planilha .xlsx ou .csv. Arquivos .xls antigos não são aceitos por segurança.');
+  const rawSheets = /\.csv$/i.test(file.name)
+    ? [{ sheet: 'CSV', data: parseCsv(await file.text()) }]
+    : await (await import('read-excel-file/browser')).default(file);
+  const sheets = rawSheets.slice(0, 3).map(({ sheet, data }) => {
+    return { name: sheet, rows: data.slice(0, 80).map((row) => row.slice(0, 16).map(compactCell)).filter((row) => row.some(Boolean)) };
   }).filter((sheet) => sheet.rows.length > 0);
   if (!sheets.length) throw new Error('Não encontrei dados utilizáveis nessa planilha.');
   return { fileName: file.name, importedAt: new Date().toISOString(), sheets };
 };
 
-export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, currentMonth, employees, shifts, settings, schedule, onConfirmActions, userId }) => {
-  const storageKey = `farma_ai_conversations_v1_${userId}`;
+export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, currentMonth, storeId, onConfirmActions, onBeforeAsk, userId }) => {
+  const storageKey = `farma_ai_conversations_v2_${userId}_${storeId}`;
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -84,7 +104,11 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(conversations)); }, [conversations, storageKey]);
+  useEffect(() => {
+    // Old conversations had no store scope and persisted sensitive spreadsheet data.
+    localStorage.removeItem(`farma_ai_conversations_v1_${userId}`);
+    sessionStorage.setItem(storageKey, JSON.stringify(conversations.map(({ importedSpreadsheet: _spreadsheet, ...conversation }) => conversation)));
+  }, [conversations, storageKey, userId]);
   const updateUsage = (next: AiUsage | null | undefined, announce = false) => {
     if (!next || typeof next.used !== 'number') return;
     const previous = usageRef.current;
@@ -119,11 +143,8 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
     title: conversation.title === 'Nova conversa' && newMessages.some((message) => message.role === 'user') ? newMessages.find((message) => message.role === 'user')!.content.slice(0, 42) : conversation.title,
     messages: [...conversation.messages, ...newMessages], updatedAt: new Date().toISOString(),
   }));
-  const safeContext = useMemo(() => ({
-    period: { year: currentYear, month: currentMonth }, pharmacy: settings,
-    employees: employees.map(({ cpf: _cpf, phone: _phone, email: _email, ...employee }) => employee),
-    shifts: shifts.map(({ color: _color, bgColor: _bg, textColor: _text, borderColor: _border, ...shift }) => shift),
-    schedule: { assignments: schedule.assignments, notes: schedule.customNotes ?? {} },
+  const makeRequestContext = () => ({
+    period: { year: currentYear, month: currentMonth },
     importedSpreadsheet: activeConversation.importedSpreadsheet && {
       fileName: activeConversation.importedSpreadsheet.fileName,
       importedAt: activeConversation.importedSpreadsheet.importedAt,
@@ -134,7 +155,7 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
         rows: sheet.rows.map((cells, index) => ({ line: index + 1, cells })),
       })),
     },
-  }), [currentYear, currentMonth, employees, shifts, settings, schedule, activeConversation.importedSpreadsheet]);
+  });
 
   const askAi = async (text: string) => {
     if (!text || isLoading) return;
@@ -143,7 +164,8 @@ export const AiManagerChat: React.FC<AiManagerChatProps> = ({ currentYear, curre
     appendMessages([{ role: 'user', content: text }]); setInput(''); setIsLoading(true); setPendingProposal(null);
     try {
       if (!supabase) throw new Error('A integração com o Supabase ainda não está configurada.');
-      const { data, error: functionError } = await supabase.functions.invoke('ai-chat', { body: { messages: nextMessages, context: safeContext } });
+      await onBeforeAsk();
+      const { data, error: functionError } = await supabase.functions.invoke('ai-chat', { body: { storeId, messages: nextMessages, context: makeRequestContext() } });
       if (functionError) {
         const response = functionError.context instanceof Response ? await functionError.context.json().catch(() => null) : null;
         updateUsage(response?.usage as AiUsage | undefined, true);

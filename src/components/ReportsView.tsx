@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
 import { 
   PharmacySettings, 
   MonthSchedule, 
@@ -125,10 +124,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setTimeout(() => setCopiedWhatsapp(false), 3000);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const { default: writeExcelFile } = await import('write-excel-file/browser');
     const activeEmployees = employees.filter((employee) => employee.active);
     const totalColumns = daysInMonth + 3;
-    const lastColumn = XLSX.utils.encode_col(totalColumns - 1);
     const generatedAt = new Date().toLocaleString('pt-BR');
     const headers = [
       'Colaborador',
@@ -162,34 +161,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       ]);
     });
 
-    const scheduleSheet = XLSX.utils.aoa_to_sheet(rows);
-    scheduleSheet['!merges'] = [0, 1, 2].map((row) => ({
-      s: { r: row, c: 0 },
-      e: { r: row, c: totalColumns - 1 },
-    }));
-    scheduleSheet['!cols'] = [
-      { wch: 28 },
-      { wch: 22 },
-      ...daysArray.map(() => ({ wch: 7 })),
-      { wch: 14 },
-    ];
-    scheduleSheet['!rows'] = [
-      { hpt: 24 },
-      { hpt: 20 },
-      { hpt: 18 },
-      { hpt: 8 },
-      { hpt: 30 },
-    ];
-    scheduleSheet['!autofilter'] = { ref: `A5:${lastColumn}${rows.length}` };
-    scheduleSheet['!margins'] = {
-      left: 0.2,
-      right: 0.2,
-      top: 0.35,
-      bottom: 0.35,
-      header: 0.1,
-      footer: 0.1,
-    };
-
     const legendRows: Array<Array<string>> = scheduleViewMode === 'days_off'
       ? [
           ['Código', 'Significado', 'Observação'],
@@ -204,20 +175,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             shift.isDayOff ? 'Folga' : `${shift.startTime} às ${shift.endTime}`,
           ]),
         ];
-    const legendSheet = XLSX.utils.aoa_to_sheet(legendRows);
-    legendSheet['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 22 }];
-    legendSheet['!autofilter'] = { ref: `A1:C${legendRows.length}` };
-
-    const workbook = XLSX.utils.book_new();
-    workbook.Props = {
-      Title: `Escala de ${getMonthName(currentMonth)} de ${currentYear}`,
-      Subject: 'Escala mensal de trabalho',
-      Author: settings.fantasyName || 'FarmaEscala',
-      CreatedDate: new Date(),
-    };
-    XLSX.utils.book_append_sheet(workbook, scheduleSheet, 'Escala mensal');
-    XLSX.utils.book_append_sheet(workbook, legendSheet, 'Legenda');
-
     const safePharmacyName = (settings.fantasyName || 'Farmacia')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -225,9 +182,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       .replace(/^_+|_+$/g, '');
     const month = String(currentMonth).padStart(2, '0');
 
-    XLSX.writeFile(workbook, `Escala_${safePharmacyName}_${currentYear}-${month}.xlsx`, {
-      compression: true,
-    });
+    const toCells = (table: Array<Array<string | number>>) => table.map((row) => row.map((value) => ({ value })));
+    const scheduleCells = toCells(rows);
+    await writeExcelFile([
+      { sheet: 'Escala mensal', data: scheduleCells, columns: [{ width: 28 }, { width: 22 }, ...daysArray.map(() => ({ width: 7 })), { width: 14 }], stickyRowsCount: 5, orientation: 'landscape' },
+      { sheet: 'Legenda', data: toCells(legendRows), columns: [{ width: 12 }, { width: 28 }, { width: 22 }] },
+    ]).toFile(`Escala_${safePharmacyName}_${currentYear}-${month}.xlsx`);
 
     setCopiedCsv(true);
     window.setTimeout(() => setCopiedCsv(false), 3000);
