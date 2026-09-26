@@ -40,7 +40,7 @@ import { StoreManagerPanel } from './components/StoreManagerPanel';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
-type Organization = { id: string; name: string; slug: string; active: boolean; store_creation_enabled: boolean };
+type Organization = { id: string; name: string; slug: string; active: boolean; store_creation_enabled: boolean; initial_setup_completed_at: string | null };
 type AccessibleStore = { id: string; name: string; code: string; active: boolean };
 
 const normalizeEmployee = ({ crf: _crf, ...employee }: PersistedEmployee): Employee => {
@@ -1217,11 +1217,12 @@ export default function App() {
   }
 
   const passwordSetupMode = invitationNeedsPassword && !invitationCompleted;
-  if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} invitedEmail={session?.user.email} onPasswordSet={() => { setInvitationCompleted(true); setInvitationNeedsPassword(false); }} />;
+  if (!session || recoveryMode || passwordSetupMode) return <AuthScreen recoveryMode={recoveryMode} passwordSetupMode={passwordSetupMode} invitedEmail={session?.user.email} onPasswordSet={() => { setInvitationCompleted(true); setInvitationNeedsPassword(false); if (session) void loadOrganization(session.user.id); }} />;
   if (loadingOrganization) return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-300">Preparando sua rede...</main>;
   if (platformAdminOpen && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
-  if (storeManagerOpen && organization) return <StoreManagerPanel organization={organization} canCreateStores={Boolean(organization.store_creation_enabled && ['network_owner', 'network_admin'].includes(membershipRole ?? ''))} onClose={() => setStoreManagerOpen(false)} />;
   if (organization && !organization.active && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso temporariamente suspenso</h1><p className="mt-3 text-sm leading-6 text-slate-600">Esta rede está suspensa. Entre em contato com o administrador responsável para regularizar o acesso.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
+  if (organization && !organization.initial_setup_completed_at && ['network_owner', 'network_admin'].includes(membershipRole ?? '')) return <StoreManagerPanel organization={organization} canCreateStores={false} initialSetup onClose={() => { if (session) void loadOrganization(session.user.id); }} onSignOut={handleSignOut} />;
+  if (storeManagerOpen && organization) return <StoreManagerPanel organization={organization} canCreateStores={Boolean(organization.store_creation_enabled && ['network_owner', 'network_admin'].includes(membershipRole ?? ''))} onClose={() => { setStoreManagerOpen(false); if (session) void loadOrganization(session.user.id); }} />;
   if (!organization && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso pendente de convite</h1><p className="mt-3 text-sm leading-6 text-slate-600">Sua conta foi autenticada, mas ainda não está vinculada a uma rede. Peça ao administrador do FarmaEscala para enviar o convite correto.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
   if (organization && accessibleStores.length === 0 && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Nenhuma filial disponível</h1><p className="mt-3 text-sm leading-6 text-slate-600">Crie uma filial ou peça ao responsável da rede para vinculá-lo a uma filial.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
   if (organization && accessibleStores.length === 0 && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;

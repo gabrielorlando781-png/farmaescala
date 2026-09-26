@@ -38,6 +38,9 @@ Deno.serve(async (request) => {
     await adminClient.from('profiles').upsert({ id: invitedUser.id, email, full_name: String(payload.managerName).trim() }, { onConflict: 'id' });
     const { error: storeMembershipError } = await adminClient.from('store_memberships').upsert({ store_id: store.id, user_id: invitedUser.id, role: 'store_manager', active: true }, { onConflict: 'store_id,user_id' });
     if (storeMembershipError) throw new Error('Não foi possível vincular o gerente à filial.');
+    // A configuração inicial só termina depois que a primeira filial tem gerente.
+    const { error: setupError } = await adminClient.from('organizations').update({ initial_setup_completed_at: new Date().toISOString() }).eq('id', store.organization_id).is('initial_setup_completed_at', null);
+    if (setupError) throw new Error('O gerente foi vinculado, mas não foi possível concluir a configuração da rede.');
     await adminClient.from('platform_invites').insert({ organization_id: store.organization_id, invited_user_id: invitedUser.id, email, role: 'store_manager', invited_by: user.id });
     await adminClient.from('audit_logs').insert({ organization_id: store.organization_id, store_id: store.id, actor_id: user.id, action: 'store_manager_invited', entity_type: 'store', entity_id: store.id, after_data: { manager_email: email } });
     return reply({ store: { id: store.id, name: store.name }, email });
