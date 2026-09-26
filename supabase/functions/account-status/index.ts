@@ -16,8 +16,9 @@ Deno.serve(async (request) => {
     const adminClient = createClient(url, serviceRoleKey);
     const { data: organizationMembership, error: organizationError } = await adminClient.from('organization_memberships').select('role, organizations (id, name, slug, active, store_creation_enabled, initial_setup_completed_at)').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
     if (organizationError) throw organizationError;
-    if (organizationMembership?.organizations) {
-      const organization = organizationMembership.organizations as { id: string };
+    if (organizationMembership?.organizations && ['network_owner', 'network_admin'].includes(organizationMembership.role)) {
+      const organization = organizationMembership.organizations as { id: string; active: boolean };
+      if (!organization.active) return Response.json({ organization, membershipRole: organizationMembership.role, stores: [] }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const { data: stores, error: storesError } = await adminClient.from('stores').select('id, name, code, active').eq('organization_id', organization.id).eq('active', true).order('name');
       if (storesError) throw storesError;
       return Response.json({ organization, membershipRole: organizationMembership.role, stores: stores ?? [] }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -26,8 +27,9 @@ Deno.serve(async (request) => {
     // Um gerente de filial não participa da rede inteira; ele entra por store_memberships.
     const { data: storeMembership, error: storeError } = await adminClient.from('store_memberships').select('role, stores (id, name, code, active, organization_id, organizations (id, name, slug, active, store_creation_enabled, initial_setup_completed_at))').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
     if (storeError) throw storeError;
-    const store = storeMembership?.stores as { id: string; name: string; code: string; active: boolean; organizations?: unknown } | null;
-    return Response.json({ organization: store?.organizations ?? null, membershipRole: storeMembership?.role ?? null, stores: store ? [{ id: store.id, name: store.name, code: store.code, active: store.active }] : [] }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const store = storeMembership?.stores as { id: string; name: string; code: string; active: boolean; organizations?: { active?: boolean } } | null;
+    const storeAvailable = Boolean(store?.active && store.organizations?.active);
+    return Response.json({ organization: store?.organizations ?? organizationMembership?.organizations ?? null, membershipRole: storeMembership?.role ?? organizationMembership?.role ?? null, stores: storeAvailable && store ? [{ id: store.id, name: store.name, code: store.code, active: true }] : [] }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : 'Não foi possível verificar seu acesso.' }, { status: 400, headers: corsHeaders });
   }

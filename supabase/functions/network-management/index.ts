@@ -21,8 +21,8 @@ Deno.serve(async (request) => {
     if (payload.action !== 'invite_store_manager' || !payload.storeId || !String(payload.managerName ?? '').trim() || !/^\S+@\S+\.\S+$/.test(String(payload.managerEmail ?? '').trim())) return reply({ error: 'Confira os dados do gerente.' }, 400);
 
     const adminClient = createClient(url, serviceRoleKey);
-    const { data: store, error: storeError } = await adminClient.from('stores').select('id, name, organization_id, organizations (active)').eq('id', payload.storeId).single();
-    if (storeError || !store || !(store.organizations as { active?: boolean } | null)?.active) return reply({ error: 'A filial não está disponível.' }, 400);
+    const { data: store, error: storeError } = await adminClient.from('stores').select('id, name, active, organization_id, organizations (active)').eq('id', payload.storeId).single();
+    if (storeError || !store || !store.active || !(store.organizations as { active?: boolean } | null)?.active) return reply({ error: 'A filial não está disponível.' }, 400);
 
     const { data: membership } = await adminClient.from('organization_memberships').select('role').eq('organization_id', store.organization_id).eq('user_id', user.id).eq('active', true).in('role', ['network_owner', 'network_admin']).maybeSingle();
     if (!membership) return reply({ error: 'Somente o responsável da rede pode convidar gerentes de filial.' }, 403);

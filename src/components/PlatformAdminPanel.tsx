@@ -48,7 +48,10 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
       supabase.rpc('platform_admin_metrics'),
     ]);
     if (listError) setError('Não foi possível carregar as redes.');
-    else setOrganizations((data ?? []) as unknown as Organization[]);
+    else setOrganizations(((data ?? []) as unknown as Organization[]).map((organization) => ({
+      ...organization,
+      stores: organization.stores.map((store) => ({ ...store, active: organization.active && store.active })),
+    })));
     if (overviewError) setError('Não foi possível carregar os indicadores da plataforma.');
     else setMetrics(overview as PlatformMetrics);
     setRefreshing(false);
@@ -139,6 +142,7 @@ export const PlatformAdminPanel: React.FC<{ onClose: () => void }> = ({ onClose 
           ['Responsáveis de rede', metrics?.networkOwners, 'pessoas com acesso ativo', ShieldCheck],
         ].map(([label, value, detail, Icon]) => <div key={String(label)} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Icon className="h-4 w-4 text-sky-600" />{label as string}</div><p className="mt-2 text-3xl font-bold text-slate-900">{value ?? '—'}</p><p className="mt-1 text-xs text-slate-500">{detail as string}</p></div>)}
       </section>
+      <p className="mt-2 text-xs text-slate-500">Ao suspender uma rede, todas as filiais e contas vinculadas perdem acesso. A reativação da rede restaura somente as filiais que já estavam ativas.</p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">

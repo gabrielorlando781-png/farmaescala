@@ -1148,32 +1148,40 @@ export default function App() {
   const [invitationCompleted, setInvitationCompleted] = useState(false);
   const [invitationNeedsPassword, setInvitationNeedsPassword] = useState(false);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
+  const accountLookupRequest = useRef(0);
 
-  const loadOrganization = async (userId: string) => {
+  const loadOrganization = async (userId: string, silent = false) => {
     if (!supabase) return;
-    setLoadingOrganization(true);
-    const [{ data: status, error: statusError }, { data: profile, error: profileError }] = await Promise.all([
-      supabase.functions.invoke('account-status'),
-      supabase.from('profiles').select('is_platform_admin').eq('id', userId).maybeSingle(),
-    ]);
-
-    if (statusError || status?.error) {
-      console.error('Organization lookup error:', statusError ?? status.error);
-      setOrganization(null);
-      setMembershipRole(null);
-      setAccessibleStores([]);
-      setSelectedStoreId('');
-    } else {
-      setOrganization((status?.organization as Organization | null) ?? null);
-      setMembershipRole((status?.membershipRole as string | null) ?? null);
-      const stores = (status?.stores as AccessibleStore[] | undefined) ?? [];
-      setAccessibleStores(stores);
-      const storedSelection = localStorage.getItem(`farma_selected_store_${userId}`);
-      setSelectedStoreId(stores.some((store) => store.id === storedSelection) ? storedSelection! : (stores[0]?.id ?? ''));
+    const requestId = ++accountLookupRequest.current;
+    if (!silent) setLoadingOrganization(true);
+    try {
+      const [{ data: status, error: statusError }, { data: profile, error: profileError }] = await Promise.all([
+        supabase.functions.invoke('account-status'),
+        supabase.from('profiles').select('is_platform_admin').eq('id', userId).maybeSingle(),
+      ]);
+      if (requestId !== accountLookupRequest.current) return;
+      if (statusError || status?.error) {
+        console.error('Organization lookup error:', statusError ?? status.error);
+        if (silent) return;
+        setOrganization(null);
+        setMembershipRole(null);
+        setAccessibleStores([]);
+        setSelectedStoreId('');
+      } else {
+        setOrganization((status?.organization as Organization | null) ?? null);
+        setMembershipRole((status?.membershipRole as string | null) ?? null);
+        const stores = (status?.stores as AccessibleStore[] | undefined) ?? [];
+        setAccessibleStores(stores);
+        const storedSelection = localStorage.getItem(`farma_selected_store_${userId}`);
+        setSelectedStoreId(stores.some((store) => store.id === storedSelection) ? storedSelection! : (stores[0]?.id ?? ''));
+      }
+      if (profileError) console.error('Profile lookup error:', profileError);
+      setIsPlatformAdmin(Boolean(profile?.is_platform_admin));
+    } catch (error) {
+      console.error('Organization refresh error:', error);
+    } finally {
+      if (requestId === accountLookupRequest.current) setLoadingOrganization(false);
     }
-    if (profileError) console.error('Profile lookup error:', profileError);
-    setIsPlatformAdmin(Boolean(profile?.is_platform_admin));
-    setLoadingOrganization(false);
   };
 
   useEffect(() => {
@@ -1198,6 +1206,7 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.user.id || recoveryMode) {
+      accountLookupRequest.current += 1;
       setOrganization(null);
       setMembershipRole(null);
       setAccessibleStores([]);
@@ -1207,6 +1216,24 @@ export default function App() {
     }
     setInvitationCompleted(false);
     void loadOrganization(session.user.id);
+  }, [session?.user.id, recoveryMode]);
+
+  // A RLS revoga o acesso imediatamente. Esta checagem também remove dados
+  // antigos da tela de uma sessão que permaneceu aberta após a suspensão.
+  useEffect(() => {
+    if (!session?.user.id || recoveryMode) return;
+    const userId = session.user.id;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadOrganization(userId, true);
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [session?.user.id, recoveryMode]);
 
   useEffect(() => {
