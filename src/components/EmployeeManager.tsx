@@ -82,7 +82,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
     cpf: '',
     role: 'balconista',
     roleTitle: 'Balconista de Farmácia',
-    contractType: 'escala_6x1',
+    contractType: 'escala_5x2',
     weeklyHoursTarget: 44,
     email: '',
     phone: '',
@@ -100,7 +100,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
       cpf: '',
       role: 'balconista',
       roleTitle: 'Balconista de Farmácia',
-      contractType: 'escala_6x1',
+      contractType: 'escala_5x2',
       weeklyHoursTarget: 44,
       email: '',
       phone: '',
@@ -138,7 +138,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
       cpf: formData.cpf?.trim() || '',
       role: (formData.role as EmployeeRole) || 'balconista',
       roleTitle: formData.roleTitle || 'Balconista',
-      contractType: (formData.contractType as ContractType) || 'escala_6x1',
+      contractType: (formData.contractType as ContractType) || 'escala_5x2',
       weeklyHoursTarget: Number(formData.weeklyHoursTarget) || 44,
       email: formData.email?.trim() || '',
       phone: formData.phone?.trim() || '',
@@ -441,7 +441,7 @@ export const EmployeeManager: React.FC<EmployeeManagerProps> = ({
                     Tipo de Escala / Contrato
                   </label>
                   <select
-                    value={formData.contractType || 'escala_6x1'}
+                    value={formData.contractType || 'escala_5x2'}
                     onChange={(e) => {
                       const cType = e.target.value as ContractType;
                       const opt = CONTRACT_OPTIONS.find((c) => c.value === cType);
