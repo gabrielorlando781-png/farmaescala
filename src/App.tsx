@@ -74,6 +74,10 @@ const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings =>
 };
 
 function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canManageStores, onOpenStores, stores, selectedStoreId, onSelectStore }: { user: User; onSignOut: () => void; isPlatformAdmin: boolean; onOpenPlatformAdmin: () => void; canManageStores: boolean; onOpenStores: () => void; stores: AccessibleStore[]; selectedStoreId: string; onSelectStore: (storeId: string) => void }) {
+  const legacyCacheKeys = [
+    'farma_employees_clean', 'farma_shifts_clean', 'farma_settings_clean', 'farma_schedules_clean',
+  ].map((name) => `${name}_${user.id}`);
+  const [hasLegacyCache, setHasLegacyCache] = useState(() => legacyCacheKeys.some((key) => localStorage.getItem(key) !== null));
   // Current Date State
   const now = new Date();
   const [currentYear, setCurrentYear] = useState<number>(now.getFullYear());
@@ -988,6 +992,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
 
       {loadedStoreId !== selectedStoreId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"><div className="rounded-2xl bg-white px-6 py-4 text-sm font-bold text-slate-800 shadow-2xl">Carregando dados da filial selecionada...</div></div>}
       {saveError && <div role="alert" className="fixed bottom-20 left-4 z-50 rounded-xl bg-rose-700 px-4 py-3 text-sm font-semibold text-white shadow-xl">Não foi possível salvar ou carregar os dados da filial. Verifique sua conexão antes de sair.</div>}
+      {hasLegacyCache && loadedStoreId === selectedStoreId && <div role="status" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-950"><span>Este navegador ainda guarda cópias antigas de dados. Confira as filiais antes de apagá-las; a plataforma já usa o Supabase como fonte oficial.</span><button type="button" className="rounded-lg bg-amber-800 px-3 py-2 font-bold text-white hover:bg-amber-700" onClick={() => { if (!window.confirm('Você conferiu os funcionários e escalas de todas as suas filiais? Esta ação apaga apenas as cópias antigas deste navegador e não pode ser desfeita.')) return; legacyCacheKeys.forEach((key) => localStorage.removeItem(key)); setHasLegacyCache(false); }}>Apagar cópias antigas</button></div>}
 
       {/* Navigation Tabs */}
       <Navbar
