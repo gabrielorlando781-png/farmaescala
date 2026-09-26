@@ -154,12 +154,35 @@ const actionMatchesRequest = (action: JsonRecord, request: string, context: Json
   if (action.type === 'delete_employee') return /\b(exclu|apag|delet|remov)\w*/.test(instruction);
   if (action.type === 'delete_shift') {
     const shift = (Array.isArray(context.shifts) ? context.shifts : []).find((entry) => asRecord(entry).id === action.shiftId);
-    return /\b(exclu|apag|delet|remov)\w*/.test(instruction) && (/\b(turno|horario|jornada)\b/.test(instruction) || instruction.includes(normalize(asRecord(shift).name)));
+    const shiftName = normalize(asRecord(shift).name);
+    return /\b(exclu|apag|delet|remov)\w*/.test(instruction) && (/\b(turno|horario|jornada)\b/.test(instruction) || (shiftName.length >= 2 && instruction.includes(shiftName)));
   }
   if (action.type === 'toggle_employee') return /\b(ativ|desativ)\w*/.test(instruction);
-  if (action.type === 'add_employee') return /\b(cri|cadastr|adicion|inclu)\w*/.test(instruction);
+  if (action.type === 'add_employee') {
+    const name = normalize(asRecord(JSON.parse(String(action.patchJson ?? '{}'))).name);
+    return /\b(cri|cadastr|adicion|inclu)\w*/.test(instruction) && name.length >= 3 && instruction.includes(name);
+  }
   if (action.type === 'add_shift') return /\b(cri|cadastr|adicion|inclu)\w*/.test(instruction) && /\b(turno|horario|jornada)\b/.test(instruction);
-  if (action.type === 'update_settings') return /\b(configura|parametro|farmacia|cobertura|minimo|horario|cnpj|endereco)\w*/.test(instruction);
+  if (action.type === 'update_employee') {
+    const patch = asRecord(JSON.parse(String(action.patchJson ?? '{}')));
+    return Array.isArray(patch.unavailableDays)
+      ? /\b(nao trabalha|nao pode trabalhar|indisponivel|folga fixa|folga recorrente)\b/.test(instruction)
+      : /\b(atualiz|alter|edit|mud)\w*/.test(instruction) && /\b(cadastro|funcionario|colaborador|contrato|cargo|preferencia)\w*/.test(instruction);
+  }
+  if (action.type === 'register_absence') {
+    const kind = normalize(asRecord(JSON.parse(String(action.patchJson ?? '{}'))).kind);
+    return ['ferias', 'atestado', 'falta', 'folga'].includes(kind) && instruction.includes(kind);
+  }
+  if (action.type === 'set_assignment' || action.type === 'set_assignment_range') {
+    const shift = (Array.isArray(context.shifts) ? context.shifts : []).find((entry) => asRecord(entry).id === action.shiftId);
+    const shiftName = normalize(asRecord(shift).name);
+    return /\b(turno|escala|trabalh)\w*/.test(instruction) || (shiftName.length >= 2 && instruction.includes(shiftName));
+  }
+  if (action.type === 'swap_assignments') return /\b(troc|invert|permut)\w*/.test(instruction);
+  if (action.type === 'rebalance_schedule') return /\b(reorganiz|reequilibr|redistribu|gerar escala|refazer escala)\w*/.test(instruction);
+  if (action.type === 'generate_5x2') return instruction.includes('5x2') || /\b(gerar escala|montar escala)\b/.test(instruction);
+  if (action.type === 'update_shift') return /\b(atualiz|alter|edit|mud)\w*/.test(instruction) && /\b(turno|horario|jornada)\b/.test(instruction);
+  if (action.type === 'update_settings') return /\b(atualiz|alter|edit|mud)\w*/.test(instruction) && /\b(configura|parametro|farmacia|cobertura|minimo|horario|cnpj|endereco)\w*/.test(instruction);
   return true;
 };
 
