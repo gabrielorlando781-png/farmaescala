@@ -41,6 +41,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type PersistedEmployee = Omit<Employee, 'role'> & { role: string; crf?: string };
 type Organization = { id: string; name: string; slug: string; active: boolean; store_creation_enabled: boolean };
+type AccessibleStore = { id: string; name: string; code: string; active: boolean };
 
 const normalizeEmployee = ({ crf: _crf, ...employee }: PersistedEmployee): Employee => {
   const isLegacyPharmacist =
@@ -71,7 +72,7 @@ const normalizeSettings = (savedSettings: PharmacySettings): PharmacySettings =>
   };
 };
 
-function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canManageStores, onOpenStores }: { user: User; onSignOut: () => void; isPlatformAdmin: boolean; onOpenPlatformAdmin: () => void; canManageStores: boolean; onOpenStores: () => void }) {
+function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canManageStores, onOpenStores, stores, selectedStoreId, onSelectStore }: { user: User; onSignOut: () => void; isPlatformAdmin: boolean; onOpenPlatformAdmin: () => void; canManageStores: boolean; onOpenStores: () => void; stores: AccessibleStore[]; selectedStoreId: string; onSelectStore: (storeId: string) => void }) {
   const storageKey = (name: string) => `${name}_${user.id}`;
   // Current Date State
   const now = new Date();
@@ -108,6 +109,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   // Modals state
   const [isAutoScheduleOpen, setIsAutoScheduleOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [storeDataReady, setStoreDataReady] = useState(false);
 
   // Remove the legacy fictitious dataset even when Fast Refresh preserved the
   // previous React state while this version was being installed.
@@ -133,7 +135,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
     setEmployees(legacyEmployees.map(normalizeEmployee));
   }, [employees]);
 
-  // Sync to local storage
+  // Legado local: preservado somente como fonte da primeira migração para a filial.
   useEffect(() => {
     localStorage.setItem(storageKey('farma_employees_clean'), JSON.stringify(employees));
   }, [employees]);
@@ -149,6 +151,36 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   useEffect(() => {
     localStorage.setItem(storageKey('farma_schedules_clean'), JSON.stringify(schedulesMap));
   }, [schedulesMap]);
+
+  useEffect(() => {
+    if (!supabase || !selectedStoreId) return;
+    let active = true;
+    setStoreDataReady(false);
+    void (async () => {
+      const { data, error } = await supabase.from('store_operational_data').select('employees, shifts, settings, schedules').eq('store_id', selectedStoreId).maybeSingle();
+      if (!active) return;
+      if (error) { console.error('Store data lookup error:', error); return; }
+      if (data) {
+        setEmployees((data.employees as PersistedEmployee[]).map(normalizeEmployee));
+        setShifts(data.shifts as ShiftType[]);
+        setSettings(normalizeSettings(data.settings as PharmacySettings));
+        setSchedulesMap(data.schedules as Record<string, MonthSchedule>);
+      } else {
+        const { error: createError } = await supabase.from('store_operational_data').insert({ store_id: selectedStoreId, employees, shifts, settings, schedules: schedulesMap, updated_by: user.id });
+        if (createError) console.error('Store data migration error:', createError);
+      }
+      if (active) setStoreDataReady(true);
+    })();
+    return () => { active = false; };
+  }, [selectedStoreId]);
+
+  useEffect(() => {
+    if (!supabase || !selectedStoreId || !storeDataReady) return;
+    const timeout = window.setTimeout(() => {
+      void supabase.from('store_operational_data').upsert({ store_id: selectedStoreId, employees, shifts, settings, schedules: schedulesMap, updated_by: user.id });
+    }, 350);
+    return () => window.clearTimeout(timeout);
+  }, [employees, shifts, settings, schedulesMap, selectedStoreId, storeDataReady, user.id]);
 
   // Current Month Schedule Instance
   const scheduleId = `schedule_${currentYear}_${currentMonth}`;
@@ -884,6 +916,9 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         onOpenPlatformAdmin={onOpenPlatformAdmin}
         canManageStores={canManageStores}
         onOpenStores={onOpenStores}
+        stores={stores}
+        selectedStoreId={selectedStoreId}
+        onSelectStore={onSelectStore}
       />
 
       {/* Navigation Tabs */}
@@ -1036,6 +1071,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [accessibleStores, setAccessibleStores] = useState<AccessibleStore[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState('');
   const [membershipRole, setMembershipRole] = useState<string | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminOpen, setPlatformAdminOpen] = useState(false);
@@ -1056,9 +1093,15 @@ export default function App() {
       console.error('Organization lookup error:', statusError ?? status.error);
       setOrganization(null);
       setMembershipRole(null);
+      setAccessibleStores([]);
+      setSelectedStoreId('');
     } else {
       setOrganization((status?.organization as Organization | null) ?? null);
       setMembershipRole((status?.membershipRole as string | null) ?? null);
+      const stores = (status?.stores as AccessibleStore[] | undefined) ?? [];
+      setAccessibleStores(stores);
+      const storedSelection = localStorage.getItem(`farma_selected_store_${userId}`);
+      setSelectedStoreId(stores.some((store) => store.id === storedSelection) ? storedSelection! : (stores[0]?.id ?? ''));
     }
     if (profileError) console.error('Profile lookup error:', profileError);
     setIsPlatformAdmin(Boolean(profile?.is_platform_admin));
@@ -1089,6 +1132,8 @@ export default function App() {
     if (!session?.user.id || recoveryMode) {
       setOrganization(null);
       setMembershipRole(null);
+      setAccessibleStores([]);
+      setSelectedStoreId('');
       setIsPlatformAdmin(false);
       return;
     }
@@ -1130,6 +1175,8 @@ export default function App() {
   if (storeManagerOpen && organization) return <StoreManagerPanel organization={organization} canCreateStores={Boolean(organization.store_creation_enabled && ['network_owner', 'network_admin'].includes(membershipRole ?? ''))} onClose={() => setStoreManagerOpen(false)} />;
   if (organization && !organization.active && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso temporariamente suspenso</h1><p className="mt-3 text-sm leading-6 text-slate-600">Esta rede está suspensa. Entre em contato com o administrador responsável para regularizar o acesso.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
   if (!organization && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Acesso pendente de convite</h1><p className="mt-3 text-sm leading-6 text-slate-600">Sua conta foi autenticada, mas ainda não está vinculada a uma rede. Peça ao administrador do FarmaEscala para enviar o convite correto.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
+  if (organization && accessibleStores.length === 0 && !isPlatformAdmin) return <main className="min-h-screen bg-slate-950 px-4 flex items-center justify-center"><section className="max-w-md rounded-3xl bg-white p-8 shadow-2xl"><h1 className="text-xl font-bold text-slate-900">Nenhuma filial disponível</h1><p className="mt-3 text-sm leading-6 text-slate-600">Crie uma filial ou peça ao responsável da rede para vinculá-lo a uma filial.</p><button onClick={handleSignOut} className="mt-6 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white">Sair</button></section></main>;
+  if (organization && accessibleStores.length === 0 && isPlatformAdmin) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
   if (!organization) return <PlatformAdminPanel onClose={() => setPlatformAdminOpen(false)} />;
-  return <Dashboard user={session.user} onSignOut={handleSignOut} isPlatformAdmin={isPlatformAdmin} onOpenPlatformAdmin={() => setPlatformAdminOpen(true)} canManageStores={['network_owner', 'network_admin'].includes(membershipRole ?? '')} onOpenStores={() => setStoreManagerOpen(true)} />;
+  return <Dashboard user={session.user} onSignOut={handleSignOut} isPlatformAdmin={isPlatformAdmin} onOpenPlatformAdmin={() => setPlatformAdminOpen(true)} canManageStores={['network_owner', 'network_admin'].includes(membershipRole ?? '')} onOpenStores={() => setStoreManagerOpen(true)} stores={accessibleStores} selectedStoreId={selectedStoreId} onSelectStore={(storeId) => { setSelectedStoreId(storeId); localStorage.setItem(`farma_selected_store_${session.user.id}`, storeId); }} />;
 }

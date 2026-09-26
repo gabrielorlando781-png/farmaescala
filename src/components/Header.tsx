@@ -33,6 +33,9 @@ interface HeaderProps {
   onOpenPlatformAdmin?: () => void;
   canManageStores?: boolean;
   onOpenStores?: () => void;
+  stores?: { id: string; name: string; code: string }[];
+  selectedStoreId?: string;
+  onSelectStore?: (storeId: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -53,6 +56,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPlatformAdmin,
   canManageStores = false,
   onOpenStores,
+  stores = [],
+  selectedStoreId,
+  onSelectStore,
 }) => {
   return (
     <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
@@ -75,6 +81,8 @@ export const Header: React.FC<HeaderProps> = ({
             </p>
           </div>
         </div>
+
+        {stores.length > 0 && onSelectStore && <label className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300"><Store className="h-3.5 w-3.5 text-sky-300" /><select value={selectedStoreId} onChange={(event) => onSelectStore(event.target.value)} className="max-w-40 bg-transparent font-semibold text-white outline-none"><option className="text-slate-900" value="">Selecione a filial</option>{stores.map((store) => <option className="text-slate-900" key={store.id} value={store.id}>{store.name} · {store.code}</option>)}</select></label>}
 
         {/* Month Navigation */}
         <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
