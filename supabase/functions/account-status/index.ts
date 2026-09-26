@@ -14,9 +14,15 @@ Deno.serve(async (request) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return Response.json({ error: 'Sua sessão expirou.' }, { status: 401, headers: corsHeaders });
     const adminClient = createClient(url, serviceRoleKey);
-    const { data, error } = await adminClient.from('organization_memberships').select('role, organizations (id, name, slug, active, store_creation_enabled)').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
-    if (error) throw error;
-    return Response.json({ organization: data?.organizations ?? null, membershipRole: data?.role ?? null }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const { data: organizationMembership, error: organizationError } = await adminClient.from('organization_memberships').select('role, organizations (id, name, slug, active, store_creation_enabled)').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
+    if (organizationError) throw organizationError;
+    if (organizationMembership?.organizations) return Response.json({ organization: organizationMembership.organizations, membershipRole: organizationMembership.role }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    // Um gerente de filial não participa da rede inteira; ele entra por store_memberships.
+    const { data: storeMembership, error: storeError } = await adminClient.from('store_memberships').select('role, stores (organization_id, organizations (id, name, slug, active, store_creation_enabled))').eq('user_id', user.id).eq('active', true).limit(1).maybeSingle();
+    if (storeError) throw storeError;
+    const store = storeMembership?.stores as { organizations?: unknown } | null;
+    return Response.json({ organization: store?.organizations ?? null, membershipRole: storeMembership?.role ?? null }, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : 'Não foi possível verificar seu acesso.' }, { status: 400, headers: corsHeaders });
   }
