@@ -9,6 +9,19 @@ type CreateInvitationPayload = {
 
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
+// Em situações antigas de convite interrompido, o usuário pode existir no Auth
+// sem que o perfil tenha sido criado. Só consultamos o Auth nesse caso raro.
+const findAuthUserByEmail = async (adminClient: ReturnType<typeof createClient>, email: string) => {
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error('Não foi possível recuperar a conta já existente.');
+    const user = data.users.find((candidate) => candidate.email?.trim().toLowerCase() === email);
+    if (user) return user;
+    if (data.users.length < 1000) break;
+  }
+  return null;
+};
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return response({ error: 'Método não permitido.' }, 405);
@@ -74,17 +87,28 @@ Deno.serve(async (request) => {
         if (/rate.?limit|too many|email.*limit/i.test(details)) {
           return response({ error: 'O limite de e-mails de convite do Supabase foi atingido. Isso não é limite do banco: aguarde cerca de uma hora para tentar novamente ou configure um SMTP próprio quando começar a vender o sistema.' }, 429);
         }
-        throw new Error(details || 'Não foi possível criar o convite.');
+        if (/already|registered|exists|duplicate/i.test(details)) {
+          const recoveredUser = await findAuthUserByEmail(adminClient, email);
+          if (!recoveredUser) throw new Error('O e-mail já está registrado, mas a conta não pôde ser localizada para receber o acesso.');
+          ownerUserId = recoveredUser.id;
+          const { error: profileUpsertError } = await adminClient.from('profiles').upsert({ id: ownerUserId, email, full_name: String(ownerName).trim() }, { onConflict: 'id' });
+          if (profileUpsertError) throw new Error('Não foi possível recuperar o perfil da conta existente.');
+          const { error: recoveryError } = await userClient.auth.resetPasswordForEmail(email, { redirectTo });
+          if (recoveryError) throw new Error('A conta já existia e recebeu acesso à rede, mas não foi possível enviar o e-mail para definir a senha. Use "Esqueci minha senha" na tela de acesso.');
+          invitationSent = true;
+        } else {
+          throw new Error(details || 'Não foi possível criar o convite.');
+        }
+      } else {
+        ownerUserId = invitation.user.id;
+        invitationSent = true;
+        const { error: invitationFlagError } = await adminClient.auth.admin.updateUserById(ownerUserId, {
+          app_metadata: { ...invitation.user.app_metadata, invitation_pending: true },
+        });
+        if (invitationFlagError) throw new Error('Não foi possível preparar o acesso inicial do responsável.');
+        const { error: profileUpsertError } = await adminClient.from('profiles').upsert({ id: ownerUserId, email, full_name: String(ownerName).trim() }, { onConflict: 'id' });
+        if (profileUpsertError) throw new Error('Não foi possível preparar o perfil do responsável.');
       }
-
-      ownerUserId = invitation.user.id;
-      invitationSent = true;
-      const { error: invitationFlagError } = await adminClient.auth.admin.updateUserById(ownerUserId, {
-        app_metadata: { ...invitation.user.app_metadata, invitation_pending: true },
-      });
-      if (invitationFlagError) throw new Error('Não foi possível preparar o acesso inicial do responsável.');
-      const { error: profileUpsertError } = await adminClient.from('profiles').upsert({ id: ownerUserId, email, full_name: String(ownerName).trim() }, { onConflict: 'id' });
-      if (profileUpsertError) throw new Error('Não foi possível preparar o perfil do responsável.');
     }
 
     const { data: organization, error: organizationError } = await adminClient.from('organizations').insert({ name: String(name).trim(), slug: normalizedSlug }).select('id, name, slug').single();
