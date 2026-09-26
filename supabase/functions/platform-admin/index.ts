@@ -69,7 +69,13 @@ Deno.serve(async (request) => {
       const { data: invitation, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
         data: { full_name: String(ownerName).trim(), must_set_password: true }, redirectTo,
       });
-      if (inviteError || !invitation.user) throw new Error(inviteError?.message || 'Não foi possível criar o convite.');
+      if (inviteError || !invitation.user) {
+        const details = inviteError?.message || '';
+        if (/rate.?limit|too many|email.*limit/i.test(details)) {
+          return response({ error: 'O limite de e-mails de convite do Supabase foi atingido. Isso não é limite do banco: aguarde cerca de uma hora para tentar novamente ou configure um SMTP próprio quando começar a vender o sistema.' }, 429);
+        }
+        throw new Error(details || 'Não foi possível criar o convite.');
+      }
 
       ownerUserId = invitation.user.id;
       invitationSent = true;

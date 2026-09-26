@@ -17,8 +17,9 @@ const getFunctionErrorMessage = async (requestError: unknown, fallback: string) 
   const context = requestError && typeof requestError === 'object' && 'context' in requestError
     ? (requestError as { context?: unknown }).context
     : undefined;
-  if (context instanceof Response) {
-    const body = await context.clone().json().catch(() => null) as { error?: unknown } | null;
+  if (context && typeof context === 'object' && 'json' in context && typeof (context as { json?: unknown }).json === 'function') {
+    const response = context as { clone?: () => { json: () => Promise<unknown> }; json: () => Promise<unknown> };
+    const body = await (response.clone ? response.clone().json() : response.json()).catch(() => null) as { error?: unknown } | null;
     if (typeof body?.error === 'string' && body.error.trim()) return body.error;
   }
   return requestError instanceof Error && requestError.message ? requestError.message : fallback;
