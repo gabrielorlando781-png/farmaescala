@@ -112,6 +112,25 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
   const [loadedStoreId, setLoadedStoreId] = useState<string | null>(null);
   const legacyStoreData = useRef({ employees, shifts, settings, schedulesMap });
   const storeLoadRequest = useRef(0);
+  const storeSaveQueue = useRef(Promise.resolve());
+  const latestStoreData = useRef({ storeId: null as string | null, employees, shifts, settings, schedulesMap });
+  latestStoreData.current = { storeId: loadedStoreId, employees, shifts, settings, schedulesMap };
+
+  const enqueueStoreSave = (storeId: string, snapshot: { employees: Employee[]; shifts: ShiftType[]; settings: PharmacySettings; schedulesMap: Record<string, MonthSchedule> }) => {
+    if (!supabase) return;
+    // Serializa as gravações: uma alteração antiga nunca chega ao banco depois da mais nova.
+    storeSaveQueue.current = storeSaveQueue.current.catch(() => undefined).then(async () => {
+      const { error } = await supabase.from('store_operational_data').upsert({
+        store_id: storeId,
+        employees: snapshot.employees,
+        shifts: snapshot.shifts,
+        settings: snapshot.settings,
+        schedules: snapshot.schedulesMap,
+        updated_by: user.id,
+      });
+      if (error) console.error('Store data save error:', error);
+    });
+  };
 
   // Remove the legacy fictitious dataset even when Fast Refresh preserved the
   // previous React state while this version was being installed.
@@ -197,11 +216,17 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
     // Só persiste depois de confirmar que os dados exibidos pertencem à filial selecionada.
     // Isso impede que uma troca de filial grave dados da filial anterior na nova.
     if (!supabase || !selectedStoreId || loadedStoreId !== selectedStoreId) return;
-    const timeout = window.setTimeout(() => {
-      void supabase.from('store_operational_data').upsert({ store_id: selectedStoreId, employees, shifts, settings, schedules: schedulesMap, updated_by: user.id });
-    }, 350);
-    return () => window.clearTimeout(timeout);
+    enqueueStoreSave(selectedStoreId, { employees, shifts, settings, schedulesMap });
   }, [employees, shifts, settings, schedulesMap, selectedStoreId, loadedStoreId, user.id]);
+
+  const handleSelectStore = (nextStoreId: string) => {
+    // Grava o estado atual antes de iniciar a troca de filial, sem depender de timers.
+    const snapshot = latestStoreData.current;
+    if (snapshot.storeId && snapshot.storeId !== nextStoreId) {
+      enqueueStoreSave(snapshot.storeId, snapshot);
+    }
+    onSelectStore(nextStoreId);
+  };
 
   // Current Month Schedule Instance
   const scheduleId = `schedule_${currentYear}_${currentMonth}`;
@@ -939,7 +964,7 @@ function Dashboard({ user, onSignOut, isPlatformAdmin, onOpenPlatformAdmin, canM
         onOpenStores={onOpenStores}
         stores={stores}
         selectedStoreId={selectedStoreId}
-        onSelectStore={onSelectStore}
+        onSelectStore={handleSelectStore}
       />
 
       {loadedStoreId !== selectedStoreId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"><div className="rounded-2xl bg-white px-6 py-4 text-sm font-bold text-slate-800 shadow-2xl">Carregando dados da filial selecionada...</div></div>}
